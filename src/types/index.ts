@@ -153,6 +153,22 @@ export interface BackupLog {
   created_at: string;
 }
 
+// Response from Rust backup_database command
+export interface BackupResult {
+  filename: string;
+  path: string;
+  file_size: number;
+  created_at: string;
+}
+
+// Backup file info from filesystem
+export interface BackupFileInfo {
+  filename: string;
+  path: string;
+  file_size: number;
+  modified_at: string;
+}
+
 // ============================================
 // SETTINGS TYPES
 // ============================================
