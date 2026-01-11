@@ -313,7 +313,7 @@ export const Billing: React.FC = () => {
               <p className="text-slate-500 max-w-xs mt-1">{search ? "Try searching for something else" : "Add products in the Inventory tab to get started"}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {filteredProducts.map((p) => {
                 const status = getStockStatus(p);
                 const isDisabled = p.quantity <= 0;
@@ -332,7 +332,7 @@ export const Billing: React.FC = () => {
                     }}
                     disabled={isDisabled}
                     className={`
-                      relative text-left p-4 rounded-2xl border transition-all duration-200 group flex flex-col h-full
+                      relative text-left p-5 rounded-2xl border transition-all duration-200 group flex flex-col h-full
                       ${isDisabled
                         ? 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'
                         : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-lg hover:-translate-y-1'
@@ -347,21 +347,21 @@ export const Billing: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="flex justify-between items-start mb-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${inCart ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
-                        <Package size={20} />
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${inCart ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                        <Package size={22} />
                       </div>
                       <Badge variant={status.variant} size="sm" className="shadow-sm">
                         {status.text}
                       </Badge>
                     </div>
 
-                    <div className="flex-1 min-h-12">
-                      <h3 className="font-bold text-slate-800 line-clamp-2 leading-snug mb-1 group-hover:text-indigo-700 transition-colors">{p.name}</h3>
+                    <div className="flex-1 min-h-14">
+                      <h3 className="font-bold text-slate-800 line-clamp-2 leading-snug mb-2 group-hover:text-indigo-700 transition-colors">{p.name}</h3>
                       <p className="text-xs text-slate-400 font-mono tracking-wide">{p.sku || "NO SKU"}</p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center">
                       <span className="text-lg font-bold text-slate-900">₹{p.price.toLocaleString()}</span>
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center transition-all

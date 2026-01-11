@@ -1,5 +1,5 @@
 import { ArrowRight, KeyRound, ShieldCheck, User2 } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { UserRole, UserSession } from "../types";
 import { Button, Input, useToast } from "./ui";
 
@@ -18,11 +18,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const toast = useToast();
-
-  const helperText = useMemo(
-    () => `Default PIN: ${DEFAULT_USERS[role].pin}`,
-    [role]
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

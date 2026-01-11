@@ -17,7 +17,7 @@ import React, { useEffect, useState } from "react";
 import { notificationService } from "../db/notificationService";
 import { UserSession } from "../types";
 import { InboxNotification, ReportIntent } from "../types/notifications";
-import { Button, useToast } from "./ui";
+import { Button } from "./ui";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -40,12 +40,10 @@ const navItems = [
 
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, session, onLogout, onReportIntent }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isBackingUp, setIsBackingUp] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [inboxItems, setInboxItems] = useState<InboxNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const toast = useToast();
   const isAdmin = session.role === "admin";
 
   useEffect(() => {

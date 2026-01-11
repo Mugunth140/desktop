@@ -36,7 +36,6 @@ export function useAsync<T>(
 export function useProducts() {
   const { data: products, loading, error, refetch } = useAsync<Product[]>(
     async () => {
-      await productService.seedData();
       return productService.getAll();
     },
     []
@@ -78,7 +77,6 @@ export function useProducts() {
 export function useInvoices() {
   const { data: invoices, loading, error, refetch } = useAsync<Invoice[]>(
     async () => {
-      await invoiceService.seedData();
       return invoiceService.getAll();
     },
     []

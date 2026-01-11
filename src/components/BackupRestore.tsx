@@ -241,9 +241,9 @@ export const BackupRestore: React.FC = () => {
 
     return (
         <div className="flex flex-col gap-6 h-[calc(100vh-8rem)] animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
                 {/* Backup Status Card */}
-                <Card className="lg:col-span-2 flex flex-col gap-6">
+                <Card className="lg:col-span-2 flex flex-col gap-6 min-h-0 overflow-hidden">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                         <div>
                             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -320,15 +320,15 @@ export const BackupRestore: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-hidden flex flex-col">
-                        <div className="flex items-center justify-between mb-3">
+                    <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                        <div className="flex items-center justify-between mb-3 shrink-0">
                             <h3 className="font-bold text-slate-700">Backup History</h3>
                             <Button variant="ghost" size="sm" onClick={loadData} leftIcon={<RefreshCcw size={14} />}>
                                 Refresh
                             </Button>
                         </div>
 
-                        <div className="border border-slate-200 rounded-xl overflow-auto flex-1 custom-scrollbar">
+                        <div className="border border-slate-200 rounded-xl overflow-auto flex-1 min-h-0 custom-scrollbar">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50 sticky top-0">
                                     <tr>
@@ -410,7 +410,7 @@ export const BackupRestore: React.FC = () => {
                 </Card>
 
                 {/* Settings Card */}
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-6 overflow-y-auto max-h-full custom-scrollbar">
                     <Card className="flex-1">
                         <div className="border-b border-slate-100 pb-4 mb-4">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">

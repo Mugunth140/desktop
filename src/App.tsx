@@ -12,8 +12,6 @@ import { Settings } from "./components/Settings";
 import { StockManagement } from "./components/StockManagement";
 import { ToastProvider } from "./components/ui";
 import { backupService } from "./db/backupService";
-import { invoiceService } from "./db/invoiceService";
-import { productService } from "./db/productService";
 import { useAuthSession } from "./hooks";
 import { ReportIntent } from "./types/notifications";
 
@@ -26,8 +24,7 @@ function AppContent() {
   useEffect(() => {
     const initApp = async () => {
       try {
-        await productService.seedData();
-        await invoiceService.seedData();
+        // Production: only check backup, no seeding
         await backupService.checkAndTriggerAutoBackup();
       } catch (error) {
         console.error("Initialization failed:", error);

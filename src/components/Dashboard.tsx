@@ -228,7 +228,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar animate-in fade-in duration-500">
+            <div className="space-y-6 pr-2">
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
                 <p className="text-slate-500">Overview of your business performance</p>
@@ -496,6 +497,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         <p className="text-xs text-slate-500 mt-1">Total sales this week</p>
                     </Card>
                 </div>
+            </div>
             </div>
         </div>
     );
