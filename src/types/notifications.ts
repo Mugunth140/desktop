@@ -3,6 +3,7 @@ export type ReportKind =
   | "product-sales"
   | "current-stock"
   | "low-stock"
+  | "non-moving"
   | "profit-summary";
 
 export interface ReportIntent {
