@@ -4,6 +4,20 @@ import { productService } from "./productService";
 import { isTauriRuntime } from "./runtime";
 import { stockAdjustmentService } from "./stockAdjustmentService";
 
+// Import for returns deduction
+const RETURNS_KEY = "motormods_sales_returns_v1";
+
+// Helper to load returns from localStorage (web fallback)
+const loadReturnsForDeduction = (): Array<{ return_date: string; total_amount: number; status: string }> => {
+  try {
+    const raw = localStorage.getItem(RETURNS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+};
+
 const INVOICES_KEY = "motormods_invoices_v1";
 const INVOICE_ITEMS_KEY = "motormods_invoice_items_v1";
 
@@ -197,19 +211,25 @@ export const invoiceService = {
     return result.length > 0 ? result[0] : null;
   },
 
-  async getStats(): Promise<{ totalInvoices: number; totalRevenue: number; todayRevenue: number; thisMonthCount: number }> {
+  async getStats(): Promise<{ totalInvoices: number; totalRevenue: number; todayRevenue: number; thisMonthCount: number; todayReturns: number; totalReturns: number }> {
     if (!isTauriRuntime()) {
       const invoices = loadInvoices();
+      const returns = loadReturnsForDeduction().filter(r => r.status === 'completed');
       const totalInvoices = invoices.length;
-      const totalRevenue = invoices.reduce((sum, i) => sum + (i.total_amount ?? 0), 0);
+      const grossRevenue = invoices.reduce((sum, i) => sum + (i.total_amount ?? 0), 0);
+      const totalReturnsAmount = returns.reduce((sum, r) => sum + (r.total_amount ?? 0), 0);
 
       const now = new Date();
       const todayKey = now.toDateString();
       const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-      const todayRevenue = invoices
+      const grossTodayRevenue = invoices
         .filter((i) => new Date(i.created_at).toDateString() === todayKey)
         .reduce((sum, i) => sum + (i.total_amount ?? 0), 0);
+
+      const todayReturnsAmount = returns
+        .filter((r) => new Date(r.return_date).toDateString() === todayKey)
+        .reduce((sum, r) => sum + (r.total_amount ?? 0), 0);
 
       const thisMonthCount = invoices.filter((i) => {
         const d = new Date(i.created_at);
@@ -217,7 +237,14 @@ export const invoiceService = {
         return k === monthKey;
       }).length;
 
-      return { totalInvoices, totalRevenue, todayRevenue, thisMonthCount };
+      return {
+        totalInvoices,
+        totalRevenue: grossRevenue - totalReturnsAmount,
+        todayRevenue: grossTodayRevenue - todayReturnsAmount,
+        thisMonthCount,
+        todayReturns: todayReturnsAmount,
+        totalReturns: totalReturnsAmount,
+      };
     }
 
     const db = await getDb();
@@ -234,11 +261,25 @@ export const invoiceService = {
       "SELECT COUNT(*) as count FROM invoices WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')"
     );
 
+    // Get returns to subtract
+    const totalReturnsResult = await db.select<{ total: number }[]>(
+      "SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_returns WHERE status = 'completed'"
+    );
+
+    const todayReturnsResult = await db.select<{ total: number }[]>(
+      "SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_returns WHERE status = 'completed' AND date(return_date) = date('now')"
+    );
+
+    const totalReturnsAmount = totalReturnsResult[0]?.total ?? 0;
+    const todayReturnsAmount = todayReturnsResult[0]?.total ?? 0;
+
     return {
       totalInvoices: totalResult[0]?.count ?? 0,
-      totalRevenue: totalResult[0]?.total ?? 0,
-      todayRevenue: todayResult[0]?.total ?? 0,
+      totalRevenue: (totalResult[0]?.total ?? 0) - totalReturnsAmount,
+      todayRevenue: (todayResult[0]?.total ?? 0) - todayReturnsAmount,
       thisMonthCount: monthResult[0]?.count ?? 0,
+      todayReturns: todayReturnsAmount,
+      totalReturns: totalReturnsAmount,
     };
   },
 
@@ -255,7 +296,8 @@ export const invoiceService = {
     if (!isTauriRuntime()) {
       const invoices = loadInvoices();
       const invoiceItems = loadInvoiceItems();
-      
+      const returns = loadReturnsForDeduction().filter(r => r.status === 'completed');
+
       const now = new Date();
       const todayKey = now.toDateString();
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
@@ -292,6 +334,35 @@ export const invoiceService = {
           lastMonthCost += cost;
         }
       }
+
+      // Subtract returns from revenue
+      let todayReturnsAmount = 0, yesterdayReturnsAmount = 0;
+      let thisMonthReturnsAmount = 0, lastMonthReturnsAmount = 0;
+
+      for (const ret of returns) {
+        const retDate = new Date(ret.return_date);
+        const retDateStr = retDate.toDateString();
+        const amount = ret.total_amount ?? 0;
+
+        if (retDateStr === todayKey) {
+          todayReturnsAmount += amount;
+        }
+        if (retDateStr === yesterday) {
+          yesterdayReturnsAmount += amount;
+        }
+        if (retDate >= monthStart) {
+          thisMonthReturnsAmount += amount;
+        }
+        if (retDate >= lastMonthStart && retDate <= lastMonthEnd) {
+          lastMonthReturnsAmount += amount;
+        }
+      }
+
+      // Apply returns deduction
+      todayRevenue -= todayReturnsAmount;
+      yesterdayRevenue -= yesterdayReturnsAmount;
+      thisMonthRevenue -= thisMonthReturnsAmount;
+      lastMonthRevenue -= lastMonthReturnsAmount;
 
       return {
         todayProfit: todayRevenue - todayCost,
@@ -347,10 +418,29 @@ export const invoiceService = {
       WHERE strftime('%Y-%m', i.created_at) = strftime('%Y-%m', 'now', '-1 month')
     `);
 
-    const todayRevenue = todayResult[0]?.revenue ?? 0;
+    // Get returns to subtract from profit
+    const todayReturns = await db.select<{ total: number }[]>(
+      "SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_returns WHERE status = 'completed' AND date(return_date) = date('now')"
+    );
+    const yesterdayReturns = await db.select<{ total: number }[]>(
+      "SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_returns WHERE status = 'completed' AND date(return_date) = date('now', '-1 day')"
+    );
+    const thisMonthReturns = await db.select<{ total: number }[]>(
+      "SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_returns WHERE status = 'completed' AND strftime('%Y-%m', return_date) = strftime('%Y-%m', 'now')"
+    );
+    const lastMonthReturns = await db.select<{ total: number }[]>(
+      "SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_returns WHERE status = 'completed' AND strftime('%Y-%m', return_date) = strftime('%Y-%m', 'now', '-1 month')"
+    );
+
+    // Subtract returns from revenue
+    const todayRevenue = (todayResult[0]?.revenue ?? 0) - (todayReturns[0]?.total ?? 0);
     const todayCost = todayResult[0]?.cost ?? 0;
-    const thisMonthRevenue = monthResult[0]?.revenue ?? 0;
+    const yesterdayRevenue = (yesterdayResult[0]?.revenue ?? 0) - (yesterdayReturns[0]?.total ?? 0);
+    const yesterdayCost = yesterdayResult[0]?.cost ?? 0;
+    const thisMonthRevenue = (monthResult[0]?.revenue ?? 0) - (thisMonthReturns[0]?.total ?? 0);
     const thisMonthCost = monthResult[0]?.cost ?? 0;
+    const lastMonthRevenue = (lastMonthResult[0]?.revenue ?? 0) - (lastMonthReturns[0]?.total ?? 0);
+    const lastMonthCost = lastMonthResult[0]?.cost ?? 0;
 
     return {
       todayProfit: todayRevenue - todayCost,
@@ -359,8 +449,8 @@ export const invoiceService = {
       thisMonthProfit: thisMonthRevenue - thisMonthCost,
       thisMonthRevenue,
       thisMonthCost,
-      yesterdayProfit: (yesterdayResult[0]?.revenue ?? 0) - (yesterdayResult[0]?.cost ?? 0),
-      lastMonthProfit: (lastMonthResult[0]?.revenue ?? 0) - (lastMonthResult[0]?.cost ?? 0),
+      yesterdayProfit: yesterdayRevenue - yesterdayCost,
+      lastMonthProfit: lastMonthRevenue - lastMonthCost,
     };
   },
 

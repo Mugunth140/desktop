@@ -284,10 +284,46 @@ fn print_receipt(text: String) -> Result<(), String> {
         Ok(())
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    {
+        // Windows thermal printer support using PowerShell
+        // Write receipt to a temp file
+        let tmp_path = std::env::temp_dir().join("motormods_receipt.txt");
+        fs::write(&tmp_path, &text).map_err(|e| format!("Failed to write receipt file: {e}"))?;
+
+        // Use PowerShell to print to the default printer
+        // For 80mm thermal printers, Windows uses the standard print spooler
+        let output = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Get-Content -Path '{}' -Raw | Out-Printer",
+                    tmp_path.to_string_lossy()
+                ),
+            ])
+            .output()
+            .map_err(|e| format!("Failed to execute print command: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Check if it's just a "no default printer" issue
+            if stderr.contains("printer") || stderr.contains("Printer") {
+                return Err("No default printer configured. Please set a default printer in Windows Settings.".to_string());
+            }
+            return Err(format!("Print failed: {stderr}"));
+        }
+
+        // Clean up temp file
+        let _ = fs::remove_file(&tmp_path);
+
+        Ok(())
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
         let _ = text;
-        Err("Printing is currently supported only on Linux builds.".to_string())
+        Err("Printing is currently supported only on Windows and Linux builds.".to_string())
     }
 }
 

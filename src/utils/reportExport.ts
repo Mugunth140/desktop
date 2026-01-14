@@ -1,9 +1,16 @@
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export type TableColumn = { key: string; label: string };
 
-export const exportTableToPdf = (opts: {
+// Check if running in Tauri
+const isTauri = () => {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+};
+
+export const exportTableToPdf = async (opts: {
   title: string;
   dateRangeText?: string;
   columns: TableColumn[];
@@ -44,10 +51,31 @@ export const exportTableToPdf = (opts: {
     );
   }
 
-  doc.save(opts.filename);
+  if (isTauri()) {
+    try {
+      // Use Tauri file dialog to save
+      const filePath = await save({
+        defaultPath: opts.filename,
+        filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+      });
+
+      if (filePath) {
+        // Get PDF as array buffer and write using Tauri FS
+        const pdfArrayBuffer = doc.output("arraybuffer");
+        await writeFile(filePath, new Uint8Array(pdfArrayBuffer));
+      }
+    } catch (error) {
+      console.error("Failed to save PDF:", error);
+      // Fallback to browser download
+      doc.save(opts.filename);
+    }
+  } else {
+    // Browser fallback
+    doc.save(opts.filename);
+  }
 };
 
-export const exportTableToCsv = (opts: {
+export const exportTableToCsv = async (opts: {
   columns: TableColumn[];
   rows: Record<string, any>[];
   filename: string;
@@ -64,11 +92,35 @@ export const exportTableToCsv = (opts: {
   const lines = opts.rows.map((r) => opts.columns.map((c) => escape(r[c.key])).join(","));
   const csv = [header, ...lines].join("\n");
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  if (isTauri()) {
+    try {
+      // Use Tauri file dialog to save
+      const filePath = await save({
+        defaultPath: opts.filename,
+        filters: [{ name: "CSV Files", extensions: ["csv"] }],
+      });
+
+      if (filePath) {
+        await writeTextFile(filePath, csv);
+      }
+    } catch (error) {
+      console.error("Failed to save CSV:", error);
+      // Fallback to browser download
+      downloadAsBrowserBlob(csv, opts.filename, "text/csv;charset=utf-8");
+    }
+  } else {
+    // Browser fallback
+    downloadAsBrowserBlob(csv, opts.filename, "text/csv;charset=utf-8");
+  }
+};
+
+// Helper for browser blob downloads
+const downloadAsBrowserBlob = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = opts.filename;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 };

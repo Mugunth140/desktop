@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { backupService } from "../db/backupService";
 import { isTauriRuntime } from "../db/runtime";
 import { settingsService } from "../db/settingsService";
-import { AppSettings, BackupLog } from "../types";
+import { AppSettings, BackupFileInfo, BackupLog } from "../types";
 import { Badge, Button, Card, ConfirmModal, Input, useToast } from "./ui";
 
 export const BackupRestore: React.FC = () => {
@@ -28,6 +28,7 @@ export const BackupRestore: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
     const [backups, setBackups] = useState<BackupLog[]>([]);
+    const [backupFiles, setBackupFiles] = useState<BackupFileInfo[]>([]);
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isBackingUp, setIsBackingUp] = useState(false);
     const [isRestoring, setIsRestoring] = useState(false);
@@ -37,13 +38,13 @@ export const BackupRestore: React.FC = () => {
     const [exportingBackup, setExportingBackup] = useState<string | null>(null);
 
     // Restore state
-    const [restoreConfirm, setRestoreConfirm] = useState<{ open: boolean; backup: BackupLog | null }>({
+    const [restoreConfirm, setRestoreConfirm] = useState<{ open: boolean; backup: BackupFileInfo | null }>({
         open: false,
         backup: null,
     });
 
     // Delete confirmation state
-    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; backup: BackupLog | null }>({
+    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; backup: BackupFileInfo | null }>({
         open: false,
         backup: null,
     });
@@ -52,11 +53,13 @@ export const BackupRestore: React.FC = () => {
         setLoading(true);
         setLoadError(false);
         try {
-            const [logs, appSettings] = await Promise.all([
+            const [logs, files, appSettings] = await Promise.all([
                 backupService.getBackupLog(),
+                backupService.listBackupFiles(),
                 settingsService.getAll()
             ]);
             setBackups(logs);
+            setBackupFiles(files);
             setSettings(appSettings);
         } catch (error) {
             console.error(error);
@@ -106,7 +109,7 @@ export const BackupRestore: React.FC = () => {
         setIsRestoring(true);
 
         try {
-            const result = await backupService.restoreFromBackup(restoreConfirm.backup.backup_file);
+            const result = await backupService.restoreFromBackup(restoreConfirm.backup.filename);
             toast.success("Restore Complete", result);
 
             // Ask user to restart app
@@ -157,10 +160,10 @@ export const BackupRestore: React.FC = () => {
         }
     };
 
-    const handleExportBackup = async (backup: BackupLog) => {
-        setExportingBackup(backup.backup_file);
+    const handleExportBackup = async (backup: BackupFileInfo) => {
+        setExportingBackup(backup.filename);
         try {
-            const result = await backupService.exportBackup(backup.backup_file);
+            const result = await backupService.exportBackup(backup.filename);
             if (result) {
                 toast.success("Export Complete", "Backup exported successfully");
             }
@@ -176,10 +179,10 @@ export const BackupRestore: React.FC = () => {
         if (!deleteConfirm.backup) return;
         const backup = deleteConfirm.backup;
         setDeleteConfirm({ open: false, backup: null });
-        setDeletingBackup(backup.backup_file);
+        setDeletingBackup(backup.filename);
 
         try {
-            await backupService.deleteBackup(backup.backup_file);
+            await backupService.deleteBackup(backup.filename);
             toast.success("Deleted", "Backup file removed");
             loadData();
         } catch (error) {
@@ -340,7 +343,7 @@ export const BackupRestore: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {backups.length === 0 ? (
+                                    {backupFiles.length === 0 ? (
                                         <tr>
                                             <td colSpan={5} className="p-8 text-center text-slate-400">
                                                 <Archive size={32} className="mx-auto mb-2 opacity-50" />
@@ -348,60 +351,64 @@ export const BackupRestore: React.FC = () => {
                                             </td>
                                         </tr>
                                     ) : (
-                                        backups.map((backup) => (
-                                            <tr key={backup.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-3 text-slate-800 font-medium">
-                                                    {new Date(backup.backup_date).toLocaleString()}
-                                                </td>
-                                                <td className="p-3">
-                                                    <Badge variant={backup.backup_type === 'auto' ? 'info' : 'neutral'}>
-                                                        {backup.backup_type}
-                                                    </Badge>
-                                                </td>
-                                                <td className="p-3 text-slate-600 font-mono text-xs">
-                                                    {formatFileSize(backup.file_size)}
-                                                </td>
-                                                <td className="p-3">
-                                                    <Badge variant={backup.status === 'success' ? 'success' : 'danger'}>
-                                                        {backup.status}
-                                                    </Badge>
-                                                </td>
-                                                <td className="p-3 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleExportBackup(backup)}
-                                                            isLoading={exportingBackup === backup.backup_file}
-                                                            className="hover:bg-sky-50 hover:text-sky-600"
-                                                            leftIcon={<ExternalLink size={14} />}
-                                                            title="Export"
-                                                        >
-                                                            Export
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => setRestoreConfirm({ open: true, backup })}
-                                                            disabled={isRestoring}
-                                                            className="hover:bg-teal-50 hover:text-teal-600"
-                                                            leftIcon={<RotateCcw size={14} />}
-                                                        >
-                                                            Restore
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => setDeleteConfirm({ open: true, backup })}
-                                                            isLoading={deletingBackup === backup.backup_file}
-                                                            className="hover:bg-red-50 hover:text-red-600"
-                                                            leftIcon={<Trash2 size={14} />}
-                                                            title="Delete"
-                                                        />
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
+                                        backupFiles.map((backup) => {
+                                            // Find matching log entry for type/status info
+                                            const logEntry = backups.find(b => b.backup_file === backup.filename);
+                                            return (
+                                                <tr key={backup.filename} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="p-3 text-slate-800 font-medium">
+                                                        {new Date(backup.modified_at).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <Badge variant={logEntry?.backup_type === 'auto' ? 'info' : 'neutral'}>
+                                                            {logEntry?.backup_type || 'manual'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="p-3 text-slate-600 font-mono text-xs">
+                                                        {formatFileSize(backup.file_size)}
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <Badge variant="success">
+                                                            Available
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="p-3 text-right">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleExportBackup(backup)}
+                                                                isLoading={exportingBackup === backup.filename}
+                                                                className="hover:bg-sky-50 hover:text-sky-600"
+                                                                leftIcon={<ExternalLink size={14} />}
+                                                                title="Export"
+                                                            >
+                                                                Export
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setRestoreConfirm({ open: true, backup })}
+                                                                disabled={isRestoring}
+                                                                className="hover:bg-teal-50 hover:text-teal-600"
+                                                                leftIcon={<RotateCcw size={14} />}
+                                                            >
+                                                                Restore
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setDeleteConfirm({ open: true, backup })}
+                                                                isLoading={deletingBackup === backup.filename}
+                                                                className="hover:bg-red-50 hover:text-red-600"
+                                                                leftIcon={<Trash2 size={14} />}
+                                                                title="Delete"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
@@ -519,7 +526,7 @@ export const BackupRestore: React.FC = () => {
                 onClose={() => setRestoreConfirm({ open: false, backup: null })}
                 onConfirm={handleRestore}
                 title="Restore Database?"
-                message={`Are you sure you want to restore the database from "${restoreConfirm.backup?.backup_date ? new Date(restoreConfirm.backup.backup_date).toLocaleString() : 'selected backup'}"?\n\nA safety backup will be created automatically. The application will restart after restore.`}
+                message={`Are you sure you want to restore the database from "${restoreConfirm.backup?.modified_at ? new Date(restoreConfirm.backup.modified_at).toLocaleString() : 'selected backup'}"?\n\nA safety backup will be created automatically. The application will restart after restore.`}
                 confirmText="Yes, Restore Database"
                 variant="danger"
             />
@@ -530,7 +537,7 @@ export const BackupRestore: React.FC = () => {
                 onClose={() => setDeleteConfirm({ open: false, backup: null })}
                 onConfirm={handleDeleteBackup}
                 title="Delete Backup?"
-                message={`Are you sure you want to permanently delete the backup from "${deleteConfirm.backup?.backup_date ? new Date(deleteConfirm.backup.backup_date).toLocaleString() : 'selected backup'}"?\n\nThis action cannot be undone.`}
+                message={`Are you sure you want to permanently delete the backup from "${deleteConfirm.backup?.modified_at ? new Date(deleteConfirm.backup.modified_at).toLocaleString() : 'selected backup'}"?\n\nThis action cannot be undone.`}
                 confirmText="Yes, Delete Backup"
                 variant="danger"
             />
