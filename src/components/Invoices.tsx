@@ -1,23 +1,25 @@
 import {
-    Calendar,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    DollarSign,
-    Eye,
-    FileText,
-    Package,
-    Printer,
-    Receipt,
-    Search,
-    TrendingUp,
-    User
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  Eye,
+  FileText,
+  Package,
+  Printer,
+  Receipt,
+  RotateCcw,
+  Search,
+  TrendingUp,
+  User
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { invoiceService } from "../db/invoiceService";
+import { returnsService } from "../db/returnsService";
 import { useDebounce, useInvoices } from "../hooks";
 import { Invoice, InvoiceItem } from "../types";
-import { Button, Card, EmptyState, Modal, useToast } from "./ui";
+import { Badge, Button, Card, EmptyState, Modal, useToast } from "./ui";
 
 // Invoice Detail Modal Component
 const InvoiceDetailModal: React.FC<{
@@ -163,17 +165,24 @@ export const Invoices: React.FC = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
 
-  // Load stats
+  // Track returned invoice IDs
+  const [returnedInvoiceIds, setReturnedInvoiceIds] = useState<Set<string>>(new Set());
+
+  // Load stats and returned IDs
   useEffect(() => {
-    const loadStats = async () => {
+    const loadData = async () => {
       try {
-        const s = await invoiceService.getStats();
+        const [s, returnedIds] = await Promise.all([
+          invoiceService.getStats(),
+          returnsService.getReturnedInvoiceIds()
+        ]);
         setStats(s);
+        setReturnedInvoiceIds(returnedIds);
       } catch (error) {
-        console.error("Failed to load stats:", error);
+        console.error("Failed to load data:", error);
       }
     };
-    loadStats();
+    loadData();
   }, [invoices]);
 
   const filteredInvoices = useMemo(() => {
@@ -364,9 +373,17 @@ export const Invoices: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-4">
-                      <span className="font-bold text-lg text-slate-800">
-                        ₹{inv.total_amount.toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-lg text-slate-800">
+                          ₹{inv.total_amount.toLocaleString()}
+                        </span>
+                        {returnedInvoiceIds.has(inv.id) && (
+                          <Badge variant="warning" size="sm" className="flex items-center gap-1">
+                            <RotateCcw size={10} />
+                            Returned
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">

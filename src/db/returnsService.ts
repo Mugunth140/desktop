@@ -424,4 +424,20 @@ export const returnsService = {
 
         return true;
     },
+
+    /**
+     * Get set of invoice IDs that have been returned
+     */
+    async getReturnedInvoiceIds(): Promise<Set<string>> {
+        if (!isTauriRuntime()) {
+            const returns = loadReturns().filter(r => r.status === 'completed');
+            return new Set(returns.map(r => r.invoice_id));
+        }
+
+        const db = await getDb();
+        const results = await db.select<{ invoice_id: string }[]>(
+            "SELECT DISTINCT invoice_id FROM sales_returns WHERE status = 'completed'"
+        );
+        return new Set(results.map(r => r.invoice_id));
+    },
 };
