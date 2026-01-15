@@ -1,3 +1,4 @@
+import React from "react";
 import { Card } from "../ui";
 
 export type ReportColumn<RowT> = {
@@ -15,16 +16,24 @@ export const ReportTable = <RowT extends Record<string, any>>({
   title?: string;
   columns: ReportColumn<RowT>[];
   rows: RowT[];
-  totalsRow?: Partial<Record<keyof RowT, string | number>>;
+  totalsRow?: Partial<Record<keyof RowT, string | number | React.ReactNode>>;
 }) => {
+  // Helper to render cell content - handles both primitives and React elements
+  const renderCellContent = (value: any): React.ReactNode => {
+    if (value === null || value === undefined) return "";
+    if (React.isValidElement(value)) return value;
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
   return (
-    <Card padding="none" className="overflow-hidden">
+    <Card padding="none" className="overflow-hidden flex-1 flex flex-col min-h-0">
       {title && (
-        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
           <h3 className="text-base font-bold text-slate-800">{title}</h3>
         </div>
       )}
-      <div className="overflow-auto">
+      <div className="overflow-auto flex-1">
         <table className="w-full text-left border-collapse">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
@@ -42,23 +51,31 @@ export const ReportTable = <RowT extends Record<string, any>>({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((r, idx) => (
-              <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                {columns.map((c) => (
-                  <td
-                    key={String(c.key)}
-                    className={
-                      "p-4 text-sm text-slate-700 " +
-                      (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")
-                    }
-                  >
-                    {String(r[c.key] ?? "")}
-                  </td>
-                ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="p-8 text-center text-slate-400">
+                  No data available. Click "Generate" to load report data.
+                </td>
               </tr>
-            ))}
+            ) : (
+              rows.map((r, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                  {columns.map((c) => (
+                    <td
+                      key={String(c.key)}
+                      className={
+                        "p-4 text-sm text-slate-700 " +
+                        (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")
+                      }
+                    >
+                      {renderCellContent(r[c.key])}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
-          {totalsRow && (
+          {totalsRow && rows.length > 0 && (
             <tfoot className="bg-white sticky bottom-0">
               <tr className="border-t border-slate-200">
                 {columns.map((c) => (
@@ -69,7 +86,7 @@ export const ReportTable = <RowT extends Record<string, any>>({
                       (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "")
                     }
                   >
-                    {totalsRow[c.key] != null ? String(totalsRow[c.key]) : ""}
+                    {totalsRow[c.key] != null ? renderCellContent(totalsRow[c.key]) : ""}
                   </td>
                 ))}
               </tr>

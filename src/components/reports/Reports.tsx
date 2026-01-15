@@ -349,9 +349,9 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
   }, [sortedRows]);
 
   return (
-    <div className="flex flex-col gap-6 h-[calc(100vh-8rem)]">
-      <Card className="p-0 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-white flex items-center justify-between">
+    <div className="flex flex-col gap-6 h-full pb-8">
+      <Card className="p-0 overflow-hidden shadow-md">
+        <div className="p-5 border-b border-slate-100 bg-white flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2 flex-wrap">
             {tabs.map((t) => (
               <button
@@ -361,7 +361,9 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
                   setRows([]);
                   setFsnFilter("");
                 }}
-                className={`px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${active === t.id ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${active === t.id
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 scale-105"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
               >
                 {t.label}
@@ -369,7 +371,7 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <Button variant="secondary" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
               Export CSV
             </Button>
@@ -379,11 +381,11 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
           </div>
         </div>
 
-        <div className="p-4 bg-white border-b border-slate-100">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+        <div className="p-6 bg-slate-50/30">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div className="md:col-span-1">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">From</label>
               <Input
+                label="From"
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
@@ -391,8 +393,8 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
               />
             </div>
             <div className="md:col-span-1">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">To</label>
               <Input
+                label="To"
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
@@ -402,13 +404,13 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
 
             {canUseFsnFilter ? (
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                   Filter by FSN Classification
                 </label>
                 <select
                   value={fsnFilter}
                   onChange={(e) => setFsnFilter(e.target.value as FSNClassification | "")}
-                  className="h-11 w-full px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="h-11 w-full px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all font-medium"
                 >
                   <option value="">All Items</option>
                   <option value="F">Fast-moving (F)</option>
@@ -418,10 +420,8 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
               </div>
             ) : (
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Search (product / part number)
-                </label>
                 <Input
+                  label="Search (product / part number)"
                   placeholder={canUseSearch ? "Search product name or SKU..." : "Not applicable for this report"}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -432,18 +432,18 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
 
             <div className="md:col-span-1 flex items-end gap-2">
               <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sort</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Sort By</label>
                 <select
                   value={sortKey}
                   onChange={(e) => setSortKey(e.target.value as SortKey)}
-                  className="h-11 w-full px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="h-11 w-full px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all font-medium"
                 >
                   <option value="date">Date</option>
                   <option value="quantity">Quantity</option>
                   <option value="amount">Amount</option>
                 </select>
               </div>
-              <Button onClick={runReport} isLoading={isLoading} className="h-11" style={{ marginLeft: 8 }}>
+              <Button onClick={runReport} isLoading={isLoading} className="h-11 px-6 shadow-indigo-100">
                 Generate
               </Button>
             </div>
@@ -472,12 +472,14 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
         </div>
       </Card>
 
-      <ReportTable
-        title=""
-        columns={columns.map((c) => ({ key: c.key as any, label: c.label }))}
-        rows={displayRows}
-        totalsRow={totals as any}
-      />
+      <div className="flex-1 min-h-0">
+        <ReportTable
+          title=""
+          columns={columns.map((c) => ({ key: c.key as any, label: c.label }))}
+          rows={displayRows}
+          totalsRow={totals as any}
+        />
+      </div>
     </div>
   );
 };

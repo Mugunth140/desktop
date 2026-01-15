@@ -9,9 +9,8 @@ export interface InvoiceData {
 }
 
 /**
- * Generate a modern black & white invoice PDF
- * Features: Store logo, store details, customer info, clean item table
- * No GSTIN or tax-related fields
+ * Generate a professional invoice PDF matching the garage invoice style
+ * Features: Logo on right, store info below, bill-to section, invoice details bar, clean item table
  */
 export async function generateInvoicePdf(data: InvoiceData): Promise<string> {
     const settings = await settingsService.getAll();
@@ -26,211 +25,234 @@ export async function generateInvoicePdf(data: InvoiceData): Promise<string> {
     let yPos = margin;
 
     // ============================================
-    // HEADER: Logo + Store Details
+    // HEADER: "Invoice" title on left, Logo + store name on right
     // ============================================
 
-    // Try to load and add logo
-    try {
-        // Logo on the left
-        doc.addImage("/logo.png", "PNG", margin, yPos, 25, 25);
-    } catch {
-        // If logo fails, just skip it
-    }
-
-    // Store name and details on the right
-    doc.setFontSize(20);
+    // "Invoice" title - large, on the left
+    doc.setFontSize(28);
     doc.setFont("helvetica", "bold");
-    doc.text(settings.store_name || "MotorMods", pageWidth - margin, yPos + 8, { align: "right" });
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-
-    let contactY = yPos + 14;
-    if (settings.store_phone) {
-        doc.text(settings.store_phone, pageWidth - margin, contactY, { align: "right" });
-        contactY += 4;
-    }
-    if (settings.store_email) {
-        doc.text(settings.store_email, pageWidth - margin, contactY, { align: "right" });
-        contactY += 4;
-    }
-    if (settings.store_address) {
-        const addressLines = doc.splitTextToSize(settings.store_address, 60);
-        addressLines.forEach((line: string) => {
-            doc.text(line, pageWidth - margin, contactY, { align: "right" });
-            contactY += 4;
-        });
-    }
-
-    yPos = Math.max(yPos + 30, contactY + 5);
-
-    // ============================================
-    // INVOICE TITLE & NUMBER
-    // ============================================
-
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 8;
-
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("INVOICE", margin, yPos);
+    doc.text("Invoice", margin, yPos + 10);
 
-    doc.setFontSize(10);
+    // Store name on the right (logo placeholder)
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(settings.store_name || "MotorMods", pageWidth - margin, yPos + 10, { align: "right" });
+
+    yPos += 20;
+
+    // ============================================
+    // STORE ADDRESS LINE
+    // ============================================
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`#${data.invoice.id.slice(-8).toUpperCase()}`, pageWidth - margin, yPos, { align: "right" });
+    doc.setTextColor(80, 80, 80);
+
+    const addressParts: string[] = [];
+    if (settings.store_address) addressParts.push(settings.store_address);
+    if (settings.store_phone) addressParts.push(settings.store_phone);
+    if (settings.store_email) addressParts.push(settings.store_email);
+
+    if (addressParts.length > 0) {
+        doc.text(addressParts.join("  |  "), margin, yPos);
+        yPos += 6;
+    }
 
     yPos += 8;
 
-    // Date
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    const invoiceDate = new Date(data.invoice.created_at).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-    });
-    doc.text(`Date: ${invoiceDate}`, margin, yPos);
-
-    yPos += 10;
-
     // ============================================
-    // CUSTOMER SECTION
+    // BILL TO (left) + INVOICE INFO (right)
     // ============================================
 
-    doc.setFillColor(245, 245, 245);
-    doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 18, 2, 2, "F");
-
-    yPos += 6;
-    doc.setTextColor(100, 100, 100);
+    // Bill To section
     doc.setFontSize(8);
-    doc.text("BILL TO", margin + 5, yPos);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(100, 100, 100);
+    doc.text("BILL TO", margin, yPos);
 
     yPos += 5;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text(data.invoice.customer_name || "Walking Customer", margin + 5, yPos);
+    doc.text(data.invoice.customer_name || "Walking Customer", margin, yPos);
 
     if (data.invoice.customer_phone) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.text(data.invoice.customer_phone, margin + 5, yPos + 5);
+        yPos += 4;
+        doc.text(data.invoice.customer_phone, margin, yPos);
     }
 
-    yPos += 18;
+    // Invoice info on the right side
+    const invoiceDate = new Date(data.invoice.created_at);
+    const formattedDate = invoiceDate.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "numeric",
+        year: "numeric",
+    });
+
+    const rightColX = pageWidth - margin - 40;
+    const rightValX = pageWidth - margin;
+
+    let infoY = yPos - 9; // Align with BILL TO
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text("Invoice No.:", rightColX, infoY, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.text(data.invoice.id.slice(-8).toUpperCase(), rightValX, infoY, { align: "right" });
+
+    infoY += 5;
+    doc.setTextColor(100, 100, 100);
+    doc.text("Issue date:", rightColX, infoY, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.text(formattedDate, rightValX, infoY, { align: "right" });
+
+    infoY += 5;
+    doc.setTextColor(100, 100, 100);
+    doc.text("Payment:", rightColX, infoY, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    const paymentMode = (data.invoice.payment_mode || "cash").charAt(0).toUpperCase() +
+        (data.invoice.payment_mode || "cash").slice(1);
+    doc.text(paymentMode, rightValX, infoY, { align: "right" });
+
+    yPos += 15;
+
+    // ============================================
+    // DARK INFO BAR (Invoice No, Issue Date, Total)
+    // ============================================
+
+    const barHeight = 12;
+    doc.setFillColor(50, 50, 50);
+    doc.rect(margin, yPos, pageWidth - 2 * margin, barHeight, "F");
+
+    // Bar content
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+
+    const barY = yPos + 8;
+    const col1 = margin + 5;
+    const col2 = margin + 50;
+    const col3 = margin + 95;
+    const col4 = pageWidth - margin - 35;
+
+    doc.text("Invoice No.", col1, barY);
+    doc.text("Issue date", col2, barY);
+    doc.text("Due date", col3, barY);
+    doc.text("Total due (₹)", col4, barY);
+
+    yPos += barHeight + 2;
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, yPos, pageWidth - 2 * margin, barHeight, "F");
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    const valY = yPos + 8;
+
+    doc.text(data.invoice.id.slice(-8).toUpperCase(), col1, valY);
+    doc.text(formattedDate, col2, valY);
+    doc.text(formattedDate, col3, valY); // Due date same as issue
+    doc.setFont("helvetica", "bold");
+    doc.text(`₹ ${data.invoice.total_amount.toLocaleString("en-IN")}`, col4, valY);
+
+    yPos += barHeight + 10;
 
     // ============================================
     // ITEMS TABLE
     // ============================================
 
-    const tableData = data.items.map((item, index) => [
-        (index + 1).toString(),
+    const tableData = data.items.map((item) => [
         item.product_name || `Product #${item.product_id.slice(-6)}`,
         item.quantity.toString(),
-        `₹${item.price.toLocaleString("en-IN")}`,
-        `₹${(item.quantity * item.price).toLocaleString("en-IN")}`,
+        `₹ ${item.price.toLocaleString("en-IN")}`,
+        `₹ ${(item.quantity * item.price).toLocaleString("en-IN")}`,
     ]);
 
     autoTable(doc, {
         startY: yPos,
-        head: [["#", "Description", "Qty", "Rate", "Amount"]],
+        head: [["Description", "Quantity", "Unit price (₹)", "Amount (₹)"]],
         body: tableData,
         margin: { left: margin, right: margin },
         styles: {
             fontSize: 9,
             cellPadding: 4,
-            lineColor: [230, 230, 230],
+            lineColor: [220, 220, 220],
             lineWidth: 0.1,
         },
         headStyles: {
-            fillColor: [0, 0, 0],
-            textColor: [255, 255, 255],
+            fillColor: [255, 255, 255],
+            textColor: [100, 100, 100],
             fontStyle: "bold",
             fontSize: 8,
         },
         columnStyles: {
-            0: { cellWidth: 10, halign: "center" },
-            1: { cellWidth: "auto" },
-            2: { cellWidth: 15, halign: "center" },
-            3: { cellWidth: 25, halign: "right" },
-            4: { cellWidth: 30, halign: "right" },
+            0: { cellWidth: "auto" },
+            1: { cellWidth: 25, halign: "center" },
+            2: { cellWidth: 35, halign: "right" },
+            3: { cellWidth: 35, halign: "right" },
         },
         alternateRowStyles: {
-            fillColor: [250, 250, 250],
+            fillColor: [255, 255, 255],
         },
+        bodyStyles: {
+            textColor: [0, 0, 0],
+        },
+        theme: "plain",
+        tableLineColor: [220, 220, 220],
+        tableLineWidth: 0.1,
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     yPos = (doc as any).lastAutoTable.finalY + 10;
 
     // ============================================
-    // TOTALS
+    // TOTAL (right-aligned)
     // ============================================
 
     const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
     const discount = data.invoice.discount_amount || 0;
     const total = data.invoice.total_amount;
 
-    const totalsX = pageWidth - margin - 60;
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text("Subtotal:", totalsX, yPos);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`₹${subtotal.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
-
-    if (discount > 0) {
-        yPos += 6;
-        doc.setTextColor(100, 100, 100);
-        doc.text("Discount:", totalsX, yPos);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`-₹${discount.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
-    }
+    // Draw total line
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(pageWidth - margin - 60, yPos, pageWidth - margin, yPos);
 
     yPos += 8;
-    doc.setLineWidth(0.3);
-    doc.line(totalsX, yPos, pageWidth - margin, yPos);
-    yPos += 6;
 
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("TOTAL:", totalsX, yPos);
-    doc.text(`₹${total.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
-
-    // ============================================
-    // PAYMENT MODE
-    // ============================================
-
-    if (data.invoice.payment_mode) {
-        yPos += 10;
-        doc.setFontSize(8);
+    if (discount > 0) {
+        doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(100, 100, 100);
-        const modeLabel = data.invoice.payment_mode.charAt(0).toUpperCase() + data.invoice.payment_mode.slice(1);
-        doc.text(`Paid via ${modeLabel}`, pageWidth - margin, yPos, { align: "right" });
+        doc.text("Subtotal:", pageWidth - margin - 60, yPos);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`₹ ${subtotal.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
+
+        yPos += 5;
+        doc.setTextColor(100, 100, 100);
+        doc.text("Discount:", pageWidth - margin - 60, yPos);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`-₹ ${discount.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
+
+        yPos += 8;
     }
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("Total (₹)", pageWidth - margin - 60, yPos);
+    doc.text(`₹ ${total.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
 
     // ============================================
     // FOOTER
     // ============================================
 
-    const footerY = doc.internal.pageSize.getHeight() - 20;
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
+    const footerY = doc.internal.pageSize.getHeight() - 15;
+    doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(150, 150, 150);
     doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
-
-    doc.setFontSize(7);
-    doc.text("This is a computer-generated invoice.", pageWidth / 2, footerY + 5, { align: "center" });
 
     // Return as base64 data URL
     return doc.output("dataurlstring");
@@ -238,6 +260,7 @@ export async function generateInvoicePdf(data: InvoiceData): Promise<string> {
 
 /**
  * Save invoice PDF to a file and return the path
+ * Used for silent printing
  */
 export async function saveInvoicePdf(data: InvoiceData): Promise<string> {
     const settings = await settingsService.getAll();
@@ -251,165 +274,187 @@ export async function saveInvoicePdf(data: InvoiceData): Promise<string> {
     const margin = 15;
     let yPos = margin;
 
-    // HEADER: Logo + Store Details
-    try {
-        doc.addImage("/logo.png", "PNG", margin, yPos, 25, 25);
-    } catch {
-        // If logo fails, just skip it
-    }
-
-    doc.setFontSize(20);
+    // HEADER
+    doc.setFontSize(28);
     doc.setFont("helvetica", "bold");
-    doc.text(settings.store_name || "MotorMods", pageWidth - margin, yPos + 8, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.text("Invoice", margin, yPos + 10);
 
+    doc.setFontSize(16);
+    doc.text(settings.store_name || "MotorMods", pageWidth - margin, yPos + 10, { align: "right" });
+
+    yPos += 20;
+
+    // Store address line
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(80, 80, 80);
 
-    let contactY = yPos + 14;
-    if (settings.store_phone) {
-        doc.text(settings.store_phone, pageWidth - margin, contactY, { align: "right" });
-        contactY += 4;
-    }
-    if (settings.store_email) {
-        doc.text(settings.store_email, pageWidth - margin, contactY, { align: "right" });
-        contactY += 4;
-    }
-    if (settings.store_address) {
-        const addressLines = doc.splitTextToSize(settings.store_address, 60);
-        addressLines.forEach((line: string) => {
-            doc.text(line, pageWidth - margin, contactY, { align: "right" });
-            contactY += 4;
-        });
+    const addressParts: string[] = [];
+    if (settings.store_address) addressParts.push(settings.store_address);
+    if (settings.store_phone) addressParts.push(settings.store_phone);
+    if (settings.store_email) addressParts.push(settings.store_email);
+
+    if (addressParts.length > 0) {
+        doc.text(addressParts.join("  |  "), margin, yPos);
+        yPos += 6;
     }
 
-    yPos = Math.max(yPos + 30, contactY + 5);
-
-    // INVOICE TITLE & NUMBER
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 8;
 
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
+    // Bill To + Invoice Info
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text("INVOICE", margin, yPos);
+    doc.setTextColor(100, 100, 100);
+    doc.text("BILL TO", margin, yPos);
 
+    yPos += 5;
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`#${data.invoice.id.slice(-8).toUpperCase()}`, pageWidth - margin, yPos, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.text(data.invoice.customer_name || "Walking Customer", margin, yPos);
 
-    yPos += 8;
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    const invoiceDate = new Date(data.invoice.created_at).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
+    if (data.invoice.customer_phone) {
+        yPos += 4;
+        doc.text(data.invoice.customer_phone, margin, yPos);
+    }
+
+    const invoiceDate = new Date(data.invoice.created_at);
+    const formattedDate = invoiceDate.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "numeric",
         year: "numeric",
     });
-    doc.text(`Date: ${invoiceDate}`, margin, yPos);
-    yPos += 10;
 
-    // CUSTOMER SECTION
-    doc.setFillColor(245, 245, 245);
-    doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 18, 2, 2, "F");
-    yPos += 6;
+    const rightColX = pageWidth - margin - 40;
+    const rightValX = pageWidth - margin;
+    let infoY = yPos - 9;
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 100, 100);
-    doc.setFontSize(8);
-    doc.text("BILL TO", margin + 5, yPos);
-    yPos += 5;
+    doc.text("Invoice No.:", rightColX, infoY, { align: "right" });
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text(data.invoice.customer_name || "Walking Customer", margin + 5, yPos);
-    if (data.invoice.customer_phone) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.text(data.invoice.customer_phone, margin + 5, yPos + 5);
-    }
-    yPos += 18;
+    doc.text(data.invoice.id.slice(-8).toUpperCase(), rightValX, infoY, { align: "right" });
 
-    // ITEMS TABLE
-    const tableData = data.items.map((item, index) => [
-        (index + 1).toString(),
+    infoY += 5;
+    doc.setTextColor(100, 100, 100);
+    doc.text("Issue date:", rightColX, infoY, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.text(formattedDate, rightValX, infoY, { align: "right" });
+
+    infoY += 5;
+    doc.setTextColor(100, 100, 100);
+    doc.text("Payment:", rightColX, infoY, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    const paymentMode = (data.invoice.payment_mode || "cash").charAt(0).toUpperCase() +
+        (data.invoice.payment_mode || "cash").slice(1);
+    doc.text(paymentMode, rightValX, infoY, { align: "right" });
+
+    yPos += 15;
+
+    // Dark info bar
+    const barHeight = 12;
+    doc.setFillColor(50, 50, 50);
+    doc.rect(margin, yPos, pageWidth - 2 * margin, barHeight, "F");
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+
+    const barY = yPos + 8;
+    const col1 = margin + 5;
+    const col2 = margin + 50;
+    const col3 = margin + 95;
+    const col4 = pageWidth - margin - 35;
+
+    doc.text("Invoice No.", col1, barY);
+    doc.text("Issue date", col2, barY);
+    doc.text("Due date", col3, barY);
+    doc.text("Total due (₹)", col4, barY);
+
+    yPos += barHeight + 2;
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, yPos, pageWidth - 2 * margin, barHeight, "F");
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    const valY = yPos + 8;
+
+    doc.text(data.invoice.id.slice(-8).toUpperCase(), col1, valY);
+    doc.text(formattedDate, col2, valY);
+    doc.text(formattedDate, col3, valY);
+    doc.setFont("helvetica", "bold");
+    doc.text(`₹ ${data.invoice.total_amount.toLocaleString("en-IN")}`, col4, valY);
+
+    yPos += barHeight + 10;
+
+    // Items table
+    const tableData = data.items.map((item) => [
         item.product_name || `Product #${item.product_id.slice(-6)}`,
         item.quantity.toString(),
-        `₹${item.price.toLocaleString("en-IN")}`,
-        `₹${(item.quantity * item.price).toLocaleString("en-IN")}`,
+        `₹ ${item.price.toLocaleString("en-IN")}`,
+        `₹ ${(item.quantity * item.price).toLocaleString("en-IN")}`,
     ]);
 
     autoTable(doc, {
         startY: yPos,
-        head: [["#", "Description", "Qty", "Rate", "Amount"]],
+        head: [["Description", "Quantity", "Unit price (₹)", "Amount (₹)"]],
         body: tableData,
         margin: { left: margin, right: margin },
-        styles: { fontSize: 9, cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.1 },
-        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+        styles: { fontSize: 9, cellPadding: 4, lineColor: [220, 220, 220], lineWidth: 0.1 },
+        headStyles: { fillColor: [255, 255, 255], textColor: [100, 100, 100], fontStyle: "bold", fontSize: 8 },
         columnStyles: {
-            0: { cellWidth: 10, halign: "center" },
-            1: { cellWidth: "auto" },
-            2: { cellWidth: 15, halign: "center" },
-            3: { cellWidth: 25, halign: "right" },
-            4: { cellWidth: 30, halign: "right" },
+            0: { cellWidth: "auto" },
+            1: { cellWidth: 25, halign: "center" },
+            2: { cellWidth: 35, halign: "right" },
+            3: { cellWidth: 35, halign: "right" },
         },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
+        theme: "plain",
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-    // TOTALS
+    // Totals
     const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
     const discount = data.invoice.discount_amount || 0;
     const total = data.invoice.total_amount;
-    const totalsX = pageWidth - margin - 60;
 
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text("Subtotal:", totalsX, yPos);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`₹${subtotal.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(pageWidth - margin - 60, yPos, pageWidth - margin, yPos);
+    yPos += 8;
 
     if (discount > 0) {
-        yPos += 6;
-        doc.setTextColor(100, 100, 100);
-        doc.text("Discount:", totalsX, yPos);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`-₹${discount.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
-    }
-
-    yPos += 8;
-    doc.setLineWidth(0.3);
-    doc.line(totalsX, yPos, pageWidth - margin, yPos);
-    yPos += 6;
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("TOTAL:", totalsX, yPos);
-    doc.text(`₹${total.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
-
-    if (data.invoice.payment_mode) {
-        yPos += 10;
-        doc.setFontSize(8);
+        doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(100, 100, 100);
-        const modeLabel = data.invoice.payment_mode.charAt(0).toUpperCase() + data.invoice.payment_mode.slice(1);
-        doc.text(`Paid via ${modeLabel}`, pageWidth - margin, yPos, { align: "right" });
+        doc.text("Subtotal:", pageWidth - margin - 60, yPos);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`₹ ${subtotal.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
+
+        yPos += 5;
+        doc.setTextColor(100, 100, 100);
+        doc.text("Discount:", pageWidth - margin - 60, yPos);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`-₹ ${discount.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
+        yPos += 8;
     }
 
-    // FOOTER
-    const footerY = doc.internal.pageSize.getHeight() - 20;
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("Total (₹)", pageWidth - margin - 60, yPos);
+    doc.text(`₹ ${total.toLocaleString("en-IN")}`, pageWidth - margin, yPos, { align: "right" });
+
+    // Footer
+    const footerY = doc.internal.pageSize.getHeight() - 15;
+    doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(150, 150, 150);
     doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
-    doc.setFontSize(7);
-    doc.text("This is a computer-generated invoice.", pageWidth / 2, footerY + 5, { align: "center" });
 
     // Save to temp directory
     const filename = `Invoice_${data.invoice.id.slice(-8).toUpperCase()}_${Date.now()}.pdf`;

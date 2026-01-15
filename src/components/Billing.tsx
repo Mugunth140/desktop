@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import {
   Check,
   CreditCard,
@@ -208,31 +207,46 @@ export const Billing: React.FC = () => {
         invoiceItems
       );
 
-      // Attempt to auto-print (thermal printers via CUPS on Linux).
-      // If printing fails (e.g., printer not connected), show a toast error.
+      // Attempt to auto-print PDF invoice silently
+      // If printing fails (e.g., printer not connected), show a toast warning but continue
       try {
-        const lines: string[] = [];
-        lines.push("MOTORMODS");
-        lines.push(`Invoice: ${invoiceId.slice(0, 8).toUpperCase()}`);
-        lines.push(`Date: ${new Date().toLocaleString()}`);
-        lines.push(`Customer: ${(customerName.trim() || "Walking Customer")}`);
-        if (customerPhone.trim()) lines.push(`Phone: ${customerPhone.trim()}`);
-        lines.push("--------------------------------");
-        for (const it of cart) {
-          const total = it.price * it.cartQuantity;
-          lines.push(`${it.name}`);
-          lines.push(`  ${it.cartQuantity} x ₹${it.price} = ₹${total}`);
+        const { saveInvoicePdf } = await import("../utils/invoiceGenerator");
+        const { tryPrintPdfSilent } = await import("../utils/printService");
+
+        // Construct invoice data from cart (already in memory, no need to refetch)
+        const invoiceData = {
+          invoice: {
+            id: invoiceId,
+            customer_name: customerName.trim() || "Walking Customer",
+            customer_phone: customerPhone.trim() || null,
+            discount_amount: discountAmount,
+            total_amount: totalAmount,
+            payment_mode: "cash" as const,
+            created_at: new Date().toISOString(),
+          },
+          items: cart.map((item) => ({
+            id: uuidv4(),
+            invoice_id: invoiceId,
+            product_id: item.id,
+            product_name: item.name,
+            quantity: item.cartQuantity,
+            price: item.price,
+            cost_price: item.purchase_price ?? 0,
+          })),
+        };
+
+        const pdfPath = await saveInvoicePdf(invoiceData);
+        const printResult = await tryPrintPdfSilent(pdfPath);
+        if (!printResult.success) {
+          console.warn("Silent print failed:", printResult.error);
+          // Don't show error toast - invoice was still created successfully
         }
-        lines.push("--------------------------------");
-        lines.push(`Subtotal: ₹${subtotalAmount}`);
-        if (discountAmount > 0) lines.push(`Discount: -₹${discountAmount}`);
-        lines.push(`TOTAL: ₹${totalAmount}`);
-        lines.push("\nThank you!");
-        await invoke("print_receipt", { text: lines.join("\n") });
       } catch (printErr) {
-        const msg = printErr instanceof Error ? printErr.message : String(printErr);
-        toast.error("Print Failed", msg || "Printer not connected/configured");
+        // Silent printing errors should not block checkout
+        console.warn("Print error (non-blocking):", printErr);
       }
+
+
 
       toast.success(
         "Invoice Created",
