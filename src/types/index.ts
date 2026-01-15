@@ -176,13 +176,20 @@ export interface BackupFileInfo {
 export type LowStockMethod = 'reorder_level' | 'percentage' | 'days_supply';
 
 export interface AppSettings {
+  // Stock Settings
   low_stock_method: LowStockMethod;
   low_stock_percentage: number;
   low_stock_days_supply: number;
   non_moving_threshold_days: number;
+  // Backup Settings
   auto_backup_enabled: boolean;
   auto_backup_time: string;
   backup_retention_days: number;
+  // Store Details (for invoice branding)
+  store_name: string;
+  store_email: string;
+  store_phone: string;
+  store_address: string;
 }
 
 // ============================================

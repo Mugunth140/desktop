@@ -1,20 +1,16 @@
-import { ArrowRight, KeyRound, ShieldCheck, User2 } from "lucide-react";
+import { ArrowRight, ShieldCheck, User2, Lock } from "lucide-react";
 import React, { useState } from "react";
 import { UserRole, UserSession } from "../types";
+import { userService } from "../db/userService";
 import { Button, Input, useToast } from "./ui";
 
 interface LoginProps {
   onLogin: (session: UserSession) => void;
 }
 
-const DEFAULT_USERS: Record<UserRole, { pin: string; name: string; note: string }> = {
-  admin: { pin: "2468", name: "Admin", note: "Full System Access" },
-  staff: { pin: "1357", name: "Staff", note: "POS & Inventory View" },
-};
-
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [role, setRole] = useState<UserRole>("admin");
-  const [pin, setPin] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const toast = useToast();
@@ -22,28 +18,41 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!username.trim() || !password.trim()) {
+      setError("Please enter username and password");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate network delay for effect
-    await new Promise(resolve => setTimeout(resolve, 600));
-
     try {
-      const expectedPin = DEFAULT_USERS[role].pin;
-      if (pin.trim() !== expectedPin) {
-        setError("Incorrect PIN");
+      const user = await userService.validateLogin(username.trim(), password);
+
+      if (!user) {
+        setError("Invalid username or password");
         setIsSubmitting(false);
         return;
       }
 
-      const session: UserSession = { role, name: DEFAULT_USERS[role].name };
+      const session: UserSession = {
+        role: user.role as UserRole,
+        name: user.name,
+      };
       onLogin(session);
       toast.success("Welcome back", `Signed in as ${session.name}`);
-    } catch {
+    } catch (err) {
+      console.error(err);
+      setError("Login failed. Please try again.");
       setIsSubmitting(false);
     }
   };
 
-  const useDefaultPin = () => setPin(DEFAULT_USERS[role].pin);
+  const useDefaultCredentials = () => {
+    setUsername("admin");
+    setPassword("admin123");
+    setError("");
+  };
 
   return (
     <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
@@ -84,108 +93,87 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="md:col-span-3 p-8 md:p-12 bg-slate-950/50 flex flex-col justify-center">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
-            <p className="text-slate-400">Select your role to continue</p>
+            <p className="text-slate-400">Sign in to your account</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Role Selection */}
-            <div className="grid grid-cols-2 gap-4">
-              {(["admin", "staff"] as UserRole[]).map((r) => {
-                const isActive = role === r;
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setRole(r);
-                      setPin("");
-                      setError("");
-                    }}
-                    className={`
-                      relative group p-4 rounded-2xl border transition-all duration-300 text-left overflow-hidden
-                      ${isActive
-                        ? "bg-indigo-500/10 border-indigo-500/50 shadow-[0_0_20px_-5px_rgba(99,102,241,0.3)]"
-                        : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10"
-                      }
-                    `}
-                  >
-                    <div className={`
-                      w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors duration-300
-                      ${isActive ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-400 group-hover:text-slate-200"}
-                    `}>
-                      {r === "admin" ? <User2 size={20} /> : <KeyRound size={20} />}
-                    </div>
-                    <span className={`block font-semibold capitalize mb-0.5 ${isActive ? "text-indigo-400" : "text-slate-200"}`}>
-                      {r}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block leading-tight">
-                      {DEFAULT_USERS[r].note}
-                    </span>
-                  </button>
-                );
-              })}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Username Input */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                <User2 size={14} className="text-slate-500" />
+                Username
+              </label>
+              <Input
+                type="text"
+                placeholder="Enter username"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (error) setError("");
+                }}
+                className="!bg-slate-900/50 !border-white/10 !text-white placeholder:!text-slate-600 h-12 focus:!border-indigo-500/50 focus:!ring-indigo-500/20"
+                autoFocus
+              />
             </div>
 
-            {/* PIN Input */}
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-300">Security PIN</label>
-                  <button
-                    type="button"
-                    onClick={useDefaultPin}
-                    className="text-xs text-indigo-500 hover:text-indigo-400 transition-colors"
-                  >
-                    Use default ({DEFAULT_USERS[role].pin})
-                  </button>
-                </div>
-                <div className="relative group">
-                  <Input
-                    type="password"
-                    placeholder="••••"
-                    value={pin}
-                    onChange={(e) => {
-                      setPin(e.target.value);
-                      if (error) setError("");
-                    }}
-                    className={`
-                      !bg-slate-900/50 !border-white/10 !text-white placeholder:!text-slate-600 text-center text-2xl tracking-[0.5em] h-14 font-mono
-                      focus:!border-indigo-500/50 focus:!ring-indigo-500/20 transition-all duration-300
-                      ${error ? "!border-red-500/50 focus:!border-red-500/50 focus:!ring-red-500/20" : ""}
-                    `}
-                    autoFocus
-                  />
-                  {error && (
-                    <div className="absolute -bottom-6 left-0 w-full text-center">
-                      <span className="text-xs text-red-400 font-medium animate-in slide-in-from-top-1 fade-in duration-200">
-                        {error}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            {/* Password Input */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                <Lock size={14} className="text-slate-500" />
+                Password
+              </label>
+              <Input
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError("");
+                }}
+                className={`!bg-slate-900/50 !border-white/10 !text-white placeholder:!text-slate-600 h-12 focus:!border-indigo-500/50 focus:!ring-indigo-500/20 ${error ? "!border-red-500/50" : ""}`}
+              />
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="text-center">
+                <span className="text-sm text-red-400 font-medium animate-in slide-in-from-top-1 fade-in duration-200">
+                  {error}
+                </span>
               </div>
+            )}
 
-              <Button
-                type="submit"
-                className={`
-                  w-full h-12 text-base font-semibold bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 
-                  border-0 shadow-lg shadow-indigo-900/20 transition-all duration-300
-                  ${isSubmitting ? "opacity-80 cursor-wait" : "hover:shadow-indigo-500/20 hover:-translate-y-0.5"}
-                `}
-                disabled={isSubmitting}
+            {/* Demo Credentials Hint */}
+            <div className="flex items-center justify-center">
+              <button
+                type="button"
+                onClick={useDefaultCredentials}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-500/10"
               >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Verifying...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    Access System <ArrowRight size={18} />
-                  </span>
-                )}
-              </Button>
+                Use demo credentials (admin / admin123)
+              </button>
             </div>
+
+            <Button
+              type="submit"
+              className={`
+                w-full h-12 text-base font-semibold bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 
+                border-0 shadow-lg shadow-indigo-900/20 transition-all duration-300
+                ${isSubmitting ? "opacity-80 cursor-wait" : "hover:shadow-indigo-500/20 hover:-translate-y-0.5"}
+              `}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Signing in...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  Sign In <ArrowRight size={18} />
+                </span>
+              )}
+            </Button>
           </form>
         </div>
       </div>

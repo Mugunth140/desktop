@@ -2,21 +2,26 @@ import {
     AlertTriangle,
     Code2,
     Database,
+    Edit2,
     HardDrive,
+    Key,
+    Plus,
     Save,
     Settings as SettingsIcon,
     Sliders,
     Trash2,
+    Users,
     Wand2
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { getDb } from "../db/index";
 import { isTauriRuntime } from "../db/runtime";
 import { settingsService } from "../db/settingsService";
+import { User, userService } from "../db/userService";
 import { AppSettings, LowStockMethod } from "../types";
 import { Badge, Button, ConfirmModal, Input, useToast } from "./ui";
 
-type SettingsTab = "general" | "inventory" | "analytics" | "developer";
+type SettingsTab = "general" | "inventory" | "analytics" | "users" | "developer";
 
 export const Settings: React.FC = () => {
     const toast = useToast();
@@ -29,6 +34,18 @@ export const Settings: React.FC = () => {
     const [clearing, setClearing] = useState(false);
     const [clearConfirm, setClearConfirm] = useState(false);
     const [seedConfirm, setSeedConfirm] = useState(false);
+
+    // User Management State
+    const [users, setUsers] = useState<User[]>([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [userModalOpen, setUserModalOpen] = useState(false);
+    const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+    const [deleteUserConfirm, setDeleteUserConfirm] = useState<string | null>(null);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [userForm, setUserForm] = useState({ username: "", password: "", name: "", role: "staff" as "admin" | "staff" });
+    const [newPassword, setNewPassword] = useState("");
+    const [userSaving, setUserSaving] = useState(false);
+
 
     const loadSettings = useCallback(async () => {
         try {
@@ -46,6 +63,21 @@ export const Settings: React.FC = () => {
     useEffect(() => {
         loadSettings();
     }, [loadSettings]);
+
+    // Load users when Users tab is selected
+    useEffect(() => {
+        if (activeTab === "users") {
+            setUsersLoading(true);
+            userService.getAll()
+                .then(setUsers)
+                .catch((error) => {
+                    console.error(error);
+                    toast.error("Error", "Failed to load users");
+                })
+                .finally(() => setUsersLoading(false));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
 
     const handleSave = async () => {
         if (!settings) return;
@@ -72,6 +104,7 @@ export const Settings: React.FC = () => {
         { id: "general", label: "General", icon: SettingsIcon },
         { id: "inventory", label: "Inventory", icon: Sliders },
         { id: "analytics", label: "Analytics", icon: Sliders },
+        { id: "users", label: "Users", icon: Users },
         { id: "developer", label: "Developer", icon: Code2 },
     ];
 
@@ -330,6 +363,56 @@ export const Settings: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Store Details Section */}
+                        <div className="border-t border-slate-100 pt-8">
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="font-bold text-slate-800">Store Details</h4>
+                                <Button onClick={handleSave} isLoading={saving} leftIcon={<Save size={16} />} size="sm">
+                                    Save
+                                </Button>
+                            </div>
+                            <p className="text-sm text-slate-500 mb-4">These details appear on your printed invoices.</p>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Store Name</label>
+                                    <Input
+                                        value={settings.store_name}
+                                        onChange={(e) => updateSetting("store_name", e.target.value)}
+                                        placeholder="Your Business Name"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+                                        <Input
+                                            type="email"
+                                            value={settings.store_email}
+                                            onChange={(e) => updateSetting("store_email", e.target.value)}
+                                            placeholder="contact@example.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone</label>
+                                        <Input
+                                            type="tel"
+                                            value={settings.store_phone}
+                                            onChange={(e) => updateSetting("store_phone", e.target.value)}
+                                            placeholder="+91 98765 43210"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Address (Optional)</label>
+                                    <textarea
+                                        value={settings.store_address}
+                                        onChange={(e) => updateSetting("store_address", e.target.value)}
+                                        placeholder="Shop No, Street, City, State - PIN"
+                                        className="w-full min-h-20 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -517,6 +600,98 @@ export const Settings: React.FC = () => {
                         </div>
                     </div>
                 )}
+
+                {activeTab === "users" && (
+                    <div className="space-y-6 max-w-4xl">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-slate-800">User Management</h3>
+                            <Button
+                                onClick={() => {
+                                    setEditingUser(null);
+                                    setUserForm({ username: "", password: "", name: "", role: "staff" });
+                                    setUserModalOpen(true);
+                                }}
+                                leftIcon={<Plus size={18} />}
+                            >
+                                Add User
+                            </Button>
+                        </div>
+
+                        {usersLoading ? (
+                            <div className="text-center py-12 text-slate-500">Loading users...</div>
+                        ) : users.length === 0 ? (
+                            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
+                                <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                                <p className="text-slate-500">No users found. Add your first user above.</p>
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Username</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Name</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Role</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Status</th>
+                                            <th className="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {users.map((user) => (
+                                            <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4 font-medium text-slate-800">{user.username}</td>
+                                                <td className="px-6 py-4 text-slate-600">{user.name}</td>
+                                                <td className="px-6 py-4">
+                                                    <Badge variant={user.role === "admin" ? "info" : "neutral"} size="sm">
+                                                        {user.role}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <Badge variant={user.is_active ? "success" : "neutral"} size="sm">
+                                                        {user.is_active ? "Active" : "Inactive"}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingUser(user);
+                                                                setUserForm({ username: user.username, password: "", name: user.name, role: user.role });
+                                                                setUserModalOpen(true);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                            title="Edit User"
+                                                        >
+                                                            <Edit2 size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingUser(user);
+                                                                setNewPassword("");
+                                                                setPasswordModalOpen(true);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                                            title="Change Password"
+                                                        >
+                                                            <Key size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteUserConfirm(user.id)}
+                                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Delete User"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Seed Confirmation Modal */}
@@ -538,6 +713,175 @@ export const Settings: React.FC = () => {
                 title="Clear All Data?"
                 message="This will PERMANENTLY DELETE all products, invoices, sales returns, and stock adjustments. This action cannot be undone. Are you absolutely sure?"
                 confirmText="Yes, Delete Everything"
+                variant="danger"
+            />
+
+            {/* User Create/Edit Modal */}
+            {userModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 m-4">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">
+                            {editingUser ? "Edit User" : "Create New User"}
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+                                <Input
+                                    value={userForm.username}
+                                    onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                                    placeholder="Enter username"
+                                    disabled={!!editingUser}
+                                />
+                            </div>
+                            {!editingUser && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+                                    <Input
+                                        type="password"
+                                        value={userForm.password}
+                                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                                        placeholder="Enter password"
+                                    />
+                                </div>
+                            )}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
+                                <Input
+                                    value={userForm.name}
+                                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                                    placeholder="Enter full name"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Role</label>
+                                <select
+                                    value={userForm.role}
+                                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value as "admin" | "staff" })}
+                                    className="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                                >
+                                    <option value="staff">Staff</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <Button variant="secondary" className="flex-1" onClick={() => setUserModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1"
+                                isLoading={userSaving}
+                                onClick={async () => {
+                                    if (!userForm.username || !userForm.name) {
+                                        toast.error("Error", "Please fill in all required fields");
+                                        return;
+                                    }
+                                    if (!editingUser && !userForm.password) {
+                                        toast.error("Error", "Password is required for new users");
+                                        return;
+                                    }
+                                    setUserSaving(true);
+                                    try {
+                                        if (editingUser) {
+                                            await userService.update(editingUser.id, {
+                                                name: userForm.name,
+                                                role: userForm.role,
+                                            });
+                                            toast.success("Success", "User updated successfully");
+                                        } else {
+                                            await userService.create({
+                                                username: userForm.username,
+                                                password: userForm.password,
+                                                name: userForm.name,
+                                                role: userForm.role,
+                                            });
+                                            toast.success("Success", "User created successfully");
+                                        }
+                                        setUserModalOpen(false);
+                                        const updatedUsers = await userService.getAll();
+                                        setUsers(updatedUsers);
+                                    } catch (error) {
+                                        console.error(error);
+                                        toast.error("Error", "Failed to save user");
+                                    } finally {
+                                        setUserSaving(false);
+                                    }
+                                }}
+                            >
+                                {editingUser ? "Update" : "Create"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Change Password Modal */}
+            {passwordModalOpen && editingUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 m-4">
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">Change Password</h3>
+                        <p className="text-sm text-slate-500 mb-4">Set a new password for {editingUser.name}</p>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
+                            <Input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password"
+                            />
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <Button variant="secondary" className="flex-1" onClick={() => setPasswordModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1"
+                                isLoading={userSaving}
+                                onClick={async () => {
+                                    if (!newPassword) {
+                                        toast.error("Error", "Please enter a new password");
+                                        return;
+                                    }
+                                    setUserSaving(true);
+                                    try {
+                                        await userService.changePassword(editingUser.id, newPassword);
+                                        toast.success("Success", "Password changed successfully");
+                                        setPasswordModalOpen(false);
+                                    } catch (error) {
+                                        console.error(error);
+                                        toast.error("Error", "Failed to change password");
+                                    } finally {
+                                        setUserSaving(false);
+                                    }
+                                }}
+                            >
+                                Change Password
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete User Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!deleteUserConfirm}
+                onClose={() => setDeleteUserConfirm(null)}
+                onConfirm={async () => {
+                    if (!deleteUserConfirm) return;
+                    try {
+                        await userService.delete(deleteUserConfirm);
+                        toast.success("Success", "User deleted successfully");
+                        const updatedUsers = await userService.getAll();
+                        setUsers(updatedUsers);
+                    } catch (error) {
+                        console.error(error);
+                        toast.error("Error", "Failed to delete user");
+                    }
+                    setDeleteUserConfirm(null);
+                }}
+                title="Delete User?"
+                message="This will permanently delete this user. They will no longer be able to log in. Continue?"
+                confirmText="Yes, Delete"
                 variant="danger"
             />
         </div>

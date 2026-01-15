@@ -12,6 +12,11 @@ const defaultSettings: AppSettings = {
     auto_backup_enabled: true,
     auto_backup_time: '23:00',
     backup_retention_days: 30,
+    // Store Details
+    store_name: 'MotorMods',
+    store_email: '',
+    store_phone: '',
+    store_address: '',
 };
 
 const loadSettings = (): Partial<AppSettings> => {

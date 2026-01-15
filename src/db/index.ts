@@ -176,6 +176,38 @@ const ensureSchema = async (database: Database) => {
   await database.execute("CREATE INDEX IF NOT EXISTS idx_backup_log_date ON backup_log(backup_date)");
 
   // ============================================
+  // USERS TABLE
+  // ============================================
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'staff',
+      name TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await database.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)");
+  await database.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)");
+
+  // Seed default admin user if no users exist
+  const userCount = await database.select<{ count: number }[]>("SELECT COUNT(*) as count FROM users");
+  if (userCount[0].count === 0) {
+    // Default admin: username "admin", password "admin123"
+    // SHA-256 hash of "admin123"
+    const defaultAdminHash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
+    await database.execute(
+      `INSERT INTO users (id, username, password_hash, role, name) VALUES ($1, $2, $3, $4, $5)`,
+      ["user-admin-default", "admin", defaultAdminHash, "admin", "Administrator"]
+    );
+  }
+
+
+  // ============================================
   // MIGRATIONS FOR OLDER DATABASES
   // ============================================
 

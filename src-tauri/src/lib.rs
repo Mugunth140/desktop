@@ -327,6 +327,73 @@ fn print_receipt(text: String) -> Result<(), String> {
     }
 }
 
+// ============================================
+// SILENT PDF PRINTING (Windows only, using SumatraPDF)
+// ============================================
+
+#[tauri::command]
+fn print_pdf_silent(
+    app: AppHandle,
+    pdf_path: String,
+    printer_name: Option<String>,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // Look for SumatraPDF.exe in the resources folder
+        let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
+
+        // Try multiple possible locations for SumatraPDF.exe
+        let possible_paths = vec![
+            resource_dir.join("SumatraPDF.exe"),
+            resource_dir.join("resources").join("SumatraPDF.exe"),
+        ];
+
+        let sumatra_exe = possible_paths.iter().find(|p| p.exists()).ok_or_else(|| {
+            "SumatraPDF.exe not found. Please place SumatraPDF.exe in src-tauri/resources/"
+                .to_string()
+        })?;
+
+        // Verify PDF file exists
+        let pdf_file = std::path::Path::new(&pdf_path);
+        if !pdf_file.exists() {
+            return Err(format!("PDF file not found: {}", pdf_path));
+        }
+
+        // Build SumatraPDF command
+        let mut cmd = Command::new(sumatra_exe);
+
+        if let Some(printer) = printer_name {
+            cmd.args(["-print-to", &printer]);
+        } else {
+            cmd.arg("-print-to-default");
+        }
+
+        cmd.arg("-silent");
+        cmd.arg(&pdf_path);
+
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Failed to execute SumatraPDF: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.is_empty() {
+                // SumatraPDF often doesn't output errors, check if print started
+                return Ok(());
+            }
+            return Err(format!("Print failed: {}", stderr));
+        }
+
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, pdf_path, printer_name);
+        Err("Silent PDF printing is only available on Windows.".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -344,7 +411,8 @@ pub fn run() {
             list_backups,
             delete_backup,
             get_backups_path,
-            print_receipt
+            print_receipt,
+            print_pdf_silent
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
