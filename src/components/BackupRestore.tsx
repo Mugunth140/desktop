@@ -5,7 +5,7 @@ import {
     Clock,
     Database,
     Download,
-    ExternalLink,
+
     FileCheck,
     FolderOpen,
     HardDrive,
@@ -35,7 +35,7 @@ export const BackupRestore: React.FC = () => {
     const [isImporting, setIsImporting] = useState(false);
     const [savingSettings, setSavingSettings] = useState(false);
     const [deletingBackup, setDeletingBackup] = useState<string | null>(null);
-    const [exportingBackup, setExportingBackup] = useState<string | null>(null);
+
 
     // Restore state
     const [restoreConfirm, setRestoreConfirm] = useState<{ open: boolean; backup: BackupFileInfo | null }>({
@@ -112,16 +112,25 @@ export const BackupRestore: React.FC = () => {
             const result = await backupService.restoreFromBackup(restoreConfirm.backup.filename);
             toast.success("Restore Complete", result);
 
-            // Ask user to restart app
-            setTimeout(async () => {
-                if (isTauriRuntime()) {
+            // Force restart to apply restored data - the SQLite connection needs to be closed
+            if (isTauriRuntime()) {
+                toast.info("Restarting App", "The application will close. Please reopen it to see restored data.");
+
+                setTimeout(async () => {
                     try {
-                        await relaunch();
+                        // Use exit() - more reliable than relaunch() on Windows
+                        const { exit } = await import("@tauri-apps/plugin-process");
+                        await exit(0);
                     } catch {
-                        toast.info("Restart Required", "Please restart the application to apply the restored data.");
+                        // If exit fails, try relaunch
+                        try {
+                            await relaunch();
+                        } catch {
+                            toast.warning("Manual Restart Required", "Please close and reopen the application to see restored data.");
+                        }
                     }
-                }
-            }, 2000);
+                }, 2500);
+            }
         } catch (error) {
             console.error(error);
             toast.error("Restore Failed", error instanceof Error ? error.message : "Could not restore backup");
@@ -160,20 +169,7 @@ export const BackupRestore: React.FC = () => {
         }
     };
 
-    const handleExportBackup = async (backup: BackupFileInfo) => {
-        setExportingBackup(backup.filename);
-        try {
-            const result = await backupService.exportBackup(backup.filename);
-            if (result) {
-                toast.success("Export Complete", "Backup exported successfully");
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("Export Failed", error instanceof Error ? error.message : "Could not export backup");
-        } finally {
-            setExportingBackup(null);
-        }
-    };
+
 
     const handleDeleteBackup = async () => {
         if (!deleteConfirm.backup) return;
@@ -374,17 +370,6 @@ export const BackupRestore: React.FC = () => {
                                                     </td>
                                                     <td className="p-3 text-right">
                                                         <div className="flex items-center justify-end gap-1">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => handleExportBackup(backup)}
-                                                                isLoading={exportingBackup === backup.filename}
-                                                                className="hover:bg-sky-50 hover:text-sky-600"
-                                                                leftIcon={<ExternalLink size={14} />}
-                                                                title="Export"
-                                                            >
-                                                                Export
-                                                            </Button>
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
