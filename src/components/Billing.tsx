@@ -208,32 +208,7 @@ export const Billing: React.FC = () => {
         invoiceItems
       );
 
-      // NOTE: invoiceDataForPdf is commented out because auto-print is disabled.
-      // Uncomment this and the setTimeout block below to re-enable auto-printing.
-      /*
-      const invoiceDataForPdf = {
-        invoice: {
-          id: invoiceId,
-          customer_name: customerName.trim() || "Walking Customer",
-          customer_phone: customerPhone.trim() || null,
-          discount_amount: discountAmount,
-          total_amount: totalAmount,
-          payment_mode: "cash" as const,
-          created_at: new Date().toISOString(),
-        },
-        items: cart.map((item) => ({
-          id: uuidv4(),
-          invoice_id: invoiceId,
-          product_id: item.id,
-          product_name: item.name,
-          quantity: item.cartQuantity,
-          price: item.price,
-          cost_price: item.purchase_price ?? 0,
-        })),
-      };
-      */
-
-      // Show success FIRST, before any print operations
+      // Show success message
       toast.success(
         "Invoice Created",
         `Invoice #${invoiceId.slice(0, 8).toUpperCase()} for ₹${totalAmount.toLocaleString()}`
@@ -249,45 +224,9 @@ export const Billing: React.FC = () => {
       // Refresh product quantities
       refetch();
 
-      // NOTE: Auto-printing disabled to prevent UI freeze.
-      // PDF generation (jsPDF) is CPU-intensive and blocks the main thread.
-      // Users can manually export/print invoices from the Sales/Returns page.
-      // 
-      // To re-enable auto-printing in the future, consider using a Web Worker
-      // for PDF generation, or implement a print queue that processes invoices
-      // in the background.
-
-      /* DISABLED: Auto-print feature
-      setTimeout(async () => {
-        const isWindows = navigator.platform.toLowerCase().includes('win');
-
-        try {
-          if (isWindows) {
-            const { saveInvoicePdf } = await import("../utils/invoiceGenerator");
-            const { tryPrintPdfSilent } = await import("../utils/printService");
-            const pdfPath = await saveInvoicePdf(invoiceDataForPdf);
-            const printResult = await tryPrintPdfSilent(pdfPath);
-            if (!printResult.success) {
-              console.warn("Silent print failed:", printResult.error);
-            }
-          } else {
-            const { generateInvoicePdfBytes } = await import("../utils/invoiceGenerator");
-            const { savePdfWithDialog } = await import("../utils/printService");
-
-            const { bytes, filename } = await generateInvoicePdfBytes(invoiceDataForPdf);
-            const saveResult = await savePdfWithDialog(bytes, filename);
-
-            if (saveResult.success && saveResult.savedPath) {
-              console.log("Invoice saved to:", saveResult.savedPath);
-            } else if (saveResult.error && saveResult.error !== "Save cancelled by user") {
-              console.warn("Save failed:", saveResult.error);
-            }
-          }
-        } catch (printErr) {
-          console.warn("Print/Save error (non-blocking):", printErr);
-        }
-      }, 100);
-      */
+      // NOTE: Auto-printing is disabled to prevent UI freeze.
+      // PDF generation (jsPDF) is synchronous and blocks the main thread.
+      // Users can print invoices from the Transactions page instead.
 
     } catch (error) {
       console.error(error);
