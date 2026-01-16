@@ -17,6 +17,7 @@ import { invoiceService } from "../db/invoiceService";
 import { useDebounce, useKeyboardShortcut, useProducts } from "../hooks";
 import { CartItem, InvoiceItem, Product } from "../types";
 import { Badge, Button, ConfirmModal, useToast } from "./ui";
+import { VirtuosoGrid } from 'react-virtuoso';
 
 export const Billing: React.FC = () => {
   const { products, loading, refetch } = useProducts();
@@ -230,7 +231,7 @@ export const Billing: React.FC = () => {
       };
 
       const isWindows = navigator.platform.toLowerCase().includes('win');
-      
+
       if (isWindows) {
         // Windows: Silent print with timeout protection
         const printWithTimeout = async () => {
@@ -261,10 +262,10 @@ export const Billing: React.FC = () => {
         try {
           const { generateInvoicePdfBytes } = await import("../utils/invoiceGenerator");
           const { savePdfWithDialog } = await import("../utils/printService");
-          
+
           const { bytes, filename } = await generateInvoicePdfBytes(invoiceData);
           const saveResult = await savePdfWithDialog(bytes, filename);
-          
+
           if (saveResult.success && saveResult.savedPath) {
             toast.success("Invoice Saved", `Saved to ${saveResult.savedPath}`);
           } else if (saveResult.error && saveResult.error !== "Save cancelled by user") {
@@ -296,15 +297,7 @@ export const Billing: React.FC = () => {
     }
   };
 
-  const getStockStatus = (product: Product) => {
-    const inCart = cart.find(item => item.id === product.id);
-    const available = product.quantity - (inCart?.cartQuantity || 0);
 
-    if (product.quantity <= 0) return { text: "Out of Stock", variant: "danger" as const };
-    if (available <= 0) return { text: "All in Cart", variant: "warning" as const };
-    if (available <= 5) return { text: `${available} left`, variant: "warning" as const };
-    return { text: `${available} in stock`, variant: "success" as const };
-  };
 
   if (loading) {
     return (
@@ -320,6 +313,7 @@ export const Billing: React.FC = () => {
       <div className="flex-1 flex flex-col gap-4">
         {/* Search Bar with Keyboard Hint */}
         <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3 transition-shadow focus-within:shadow-md focus-within:border-indigo-300">
+          {/* ... existing search code ... */}
           <div className="pl-3 text-slate-400">
             <Search size={20} />
           </div>
@@ -345,8 +339,11 @@ export const Billing: React.FC = () => {
           )}
         </div>
 
+
+
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-4 pt-2 custom-scrollbar">
+        {/* Product Grid - Virtualized */}
+        <div className="flex-1 overflow-hidden p-2 bg-slate-50/30 rounded-3xl border border-slate-100/50 ml-1">
           {filteredProducts.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4">
@@ -356,15 +353,28 @@ export const Billing: React.FC = () => {
               <p className="text-slate-500 max-w-xs mt-1">{search ? "Try searching for something else" : "Add products in the Inventory tab to get started"}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {filteredProducts.map((p) => {
-                const status = getStockStatus(p);
+            <VirtuosoGrid
+              style={{ height: '100%', width: '100%' }}
+              totalCount={filteredProducts.length}
+              listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-2 pb-20"
+              itemContent={(index: number) => {
+                const p = filteredProducts[index];
+                if (!p) return null;
+
+                const inCartItem = cart.find((item) => item.id === p.id);
+                const available = p.quantity - (inCartItem?.cartQuantity || 0);
+
+                let statusText = `${available} in stock`;
+                let statusVariant: "success" | "warning" | "danger" = "success";
+
+                if (p.quantity <= 0) { statusText = "Out of Stock"; statusVariant = "danger"; }
+                else if (available <= 0) { statusText = "All in Cart"; statusVariant = "warning"; }
+                else if (available <= 5) { statusText = `${available} left`; statusVariant = "warning"; }
+
                 const isDisabled = p.quantity <= 0;
-                const inCart = cart.find(item => item.id === p.id);
 
                 return (
                   <button
-                    key={p.id}
                     onClick={() => handleProductClick(p)}
                     onContextMenu={(e) => {
                       e.preventDefault();
@@ -375,51 +385,51 @@ export const Billing: React.FC = () => {
                     }}
                     disabled={isDisabled}
                     className={`
-                      relative text-left p-5 rounded-2xl border transition-all duration-200 group flex flex-col h-full
+                      relative text-left p-4 rounded-2xl border transition-all duration-200 group flex flex-col h-full w-full shadow-sm
                       ${isDisabled
                         ? 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'
                         : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-lg hover:-translate-y-1'
                       }
-                      ${inCart ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}
+                      ${inCartItem ? 'ring-2 ring-indigo-500 ring-offset-2 border-indigo-200 bg-indigo-50/10' : ''}
                     `}
                   >
                     {/* In Cart Indicator */}
-                    {inCart && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg border-2 border-white z-10">
-                        {inCart.cartQuantity}
+                    {inCartItem && (
+                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg border-2 border-white z-10 animate-in zoom-in">
+                        {inCartItem.cartQuantity}
                       </div>
                     )}
 
-                    <div className="flex justify-between items-start mb-4">
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${inCart ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
-                        <Package size={22} />
+                    <div className="flex justify-between items-start mb-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${inCartItem ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                        <Package size={20} />
                       </div>
-                      <Badge variant={status.variant} size="sm" className="shadow-sm">
-                        {status.text}
+                      <Badge variant={statusVariant} size="sm" className="shadow-sm text-[10px]">
+                        {statusText}
                       </Badge>
                     </div>
 
-                    <div className="flex-1 min-h-14">
-                      <h3 className="font-bold text-slate-800 line-clamp-2 leading-snug mb-2 group-hover:text-indigo-700 transition-colors">{p.name}</h3>
-                      <p className="text-xs text-slate-400 font-mono tracking-wide">{p.sku || "NO SKU"}</p>
+                    <div className="flex-1 min-h-[3rem]">
+                      <h3 className="font-bold text-slate-800 line-clamp-2 leading-snug mb-1 group-hover:text-indigo-700 transition-colors text-sm">{p.name}</h3>
+                      <p className="text-[10px] text-slate-400 font-mono tracking-wide">{p.sku || "NO SKU"}</p>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center">
-                      <span className="text-lg font-bold text-slate-900">₹{p.price.toLocaleString()}</span>
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-base font-bold text-slate-900">₹{p.price.toLocaleString()}</span>
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all
                           ${isDisabled
                             ? 'bg-slate-100 text-slate-300'
                             : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-600 group-hover:text-white shadow-sm'
                           }`}
                       >
-                        <Plus size={16} strokeWidth={2.5} />
+                        <Plus size={14} strokeWidth={2.5} />
                       </div>
                     </div>
                   </button>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
         </div>
       </div>
@@ -597,58 +607,60 @@ export const Billing: React.FC = () => {
       </div>
 
       {/* Quick Add Modal */}
-      {quickAddProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
-            onClick={() => setQuickAddProduct(null)}
-          />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-4 p-6 animate-in zoom-in-95 duration-200">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Package size={24} />
+      {
+        quickAddProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+              onClick={() => setQuickAddProduct(null)}
+            />
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-4 p-6 animate-in zoom-in-95 duration-200">
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Package size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 leading-tight">{quickAddProduct.name}</h3>
+                <p className="text-sm text-slate-500 mt-1">Available: {quickAddProduct.quantity} units</p>
               </div>
-              <h3 className="text-xl font-bold text-slate-800 leading-tight">{quickAddProduct.name}</h3>
-              <p className="text-sm text-slate-500 mt-1">Available: {quickAddProduct.quantity} units</p>
-            </div>
 
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <button
-                onClick={() => setQuickAddQty(String(Math.max(1, parseInt(quickAddQty) - 1)))}
-                className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 text-slate-600 transition-colors"
-              >
-                <Minus size={24} />
-              </button>
-              <div className="w-20 text-center">
-                <input
-                  type="number"
-                  value={quickAddQty}
-                  onChange={(e) => setQuickAddQty(e.target.value)}
-                  className="w-full text-center text-3xl font-bold text-slate-800 outline-none bg-transparent"
-                  min="1"
-                  max={quickAddProduct.quantity}
-                  autoFocus
-                />
+              <div className="flex items-center justify-center gap-4 mb-8">
+                <button
+                  onClick={() => setQuickAddQty(String(Math.max(1, parseInt(quickAddQty) - 1)))}
+                  className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 text-slate-600 transition-colors"
+                >
+                  <Minus size={24} />
+                </button>
+                <div className="w-20 text-center">
+                  <input
+                    type="number"
+                    value={quickAddQty}
+                    onChange={(e) => setQuickAddQty(e.target.value)}
+                    className="w-full text-center text-3xl font-bold text-slate-800 outline-none bg-transparent"
+                    min="1"
+                    max={quickAddProduct.quantity}
+                    autoFocus
+                  />
+                </div>
+                <button
+                  onClick={() => setQuickAddQty(String(Math.min(quickAddProduct.quantity, parseInt(quickAddQty) + 1)))}
+                  className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 text-slate-600 transition-colors"
+                >
+                  <Plus size={24} />
+                </button>
               </div>
-              <button
-                onClick={() => setQuickAddQty(String(Math.min(quickAddProduct.quantity, parseInt(quickAddQty) + 1)))}
-                className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 text-slate-600 transition-colors"
-              >
-                <Plus size={24} />
-              </button>
-            </div>
 
-            <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setQuickAddProduct(null)} className="flex-1 h-12 rounded-xl">
-                Cancel
-              </Button>
-              <Button onClick={handleQuickAdd} className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700" leftIcon={<Check size={18} />}>
-                Add to Cart
-              </Button>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setQuickAddProduct(null)} className="flex-1 h-12 rounded-xl">
+                  Cancel
+                </Button>
+                <Button onClick={handleQuickAdd} className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700" leftIcon={<Check size={18} />}>
+                  Add to Cart
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Clear Cart Confirmation */}
       <ConfirmModal
@@ -660,6 +672,6 @@ export const Billing: React.FC = () => {
         confirmText="Clear All"
         variant="warning"
       />
-    </div>
+    </div >
   );
 };

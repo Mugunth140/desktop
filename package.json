@@ -22,11 +22,15 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-sql": "^2.3.1",
+    "@types/react-virtualized-auto-sizer": "^1.0.4",
+    "@types/react-window": "^1.8.8",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.562.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-virtualized-auto-sizer": "^2.0.2",
+    "react-window": "^2.2.5",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
