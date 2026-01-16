@@ -232,7 +232,14 @@ const DonutChart: React.FC<{
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const { products, loading: productsLoading } = useProducts();
     const { invoices, loading: invoicesLoading } = useInvoices();
-    const [returnStats, setReturnStats] = useState({ todayReturns: 0, todayAmount: 0 });
+    const [returnStats, setReturnStats] = useState({
+        todayReturns: 0,
+        todayAmount: 0,
+        yesterdayAmount: 0,
+        thisWeekAmount: 0,
+        thisMonthAmount: 0,
+        lastMonthAmount: 0,
+    });
     const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
     const [profitStats, setProfitStats] = useState({
         todayProfit: 0,
@@ -258,18 +265,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         loadProfitStats();
     }, [invoices]);
 
-    // Load return stats
+    // Load return stats with extended date ranges
     useEffect(() => {
         const loadReturnStats = async () => {
             try {
                 const stats = await returnsService.getStats();
-                setReturnStats(stats);
+
+                // Calculate extended return stats from all returns
+                const allReturns = await returnsService.getAll({});
+                const now = new Date();
+                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay());
+                weekStart.setHours(0, 0, 0, 0);
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+                let yesterdayAmount = 0;
+                let thisWeekAmount = 0;
+                let thisMonthAmount = 0;
+                let lastMonthAmount = 0;
+
+                for (const ret of allReturns) {
+                    if (ret.status !== 'completed') continue;
+                    const retDate = new Date(ret.return_date);
+                    const retDateStr = retDate.toDateString();
+                    const amount = ret.total_amount || 0;
+
+                    if (retDateStr === yesterday) {
+                        yesterdayAmount += amount;
+                    }
+                    if (retDate >= weekStart) {
+                        thisWeekAmount += amount;
+                    }
+                    if (retDate >= monthStart) {
+                        thisMonthAmount += amount;
+                    }
+                    if (retDate >= lastMonthStart && retDate <= lastMonthEnd) {
+                        lastMonthAmount += amount;
+                    }
+                }
+
+                setReturnStats({
+                    todayReturns: stats.todayReturns,
+                    todayAmount: stats.todayAmount,
+                    yesterdayAmount,
+                    thisWeekAmount,
+                    thisMonthAmount,
+                    lastMonthAmount,
+                });
             } catch (error) {
                 console.error("Failed to load return stats:", error);
             }
         };
         loadReturnStats();
-    }, []);
+    }, [invoices]);
 
     // Get recent invoices
     useEffect(() => {
@@ -300,14 +351,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
-        // Invoice stats
-        let todaySales = 0;
+        // Invoice stats (gross, before returns)
+        let grossTodaySales = 0;
         let todayInvoices = 0;
-        let yesterdaySales = 0;
+        let grossYesterdaySales = 0;
         let yesterdayInvoices = 0;
-        let thisWeekSales = 0;
-        let thisMonthSales = 0;
-        let lastMonthSales = 0;
+        let grossThisWeekSales = 0;
+        let grossThisMonthSales = 0;
+        let grossLastMonthSales = 0;
 
         for (const inv of invoices) {
             const invDate = new Date(inv.created_at);
@@ -315,23 +366,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             const amount = inv.total_amount || 0;
 
             if (invDateStr === today) {
-                todaySales += amount;
+                grossTodaySales += amount;
                 todayInvoices++;
             }
             if (invDateStr === yesterday) {
-                yesterdaySales += amount;
+                grossYesterdaySales += amount;
                 yesterdayInvoices++;
             }
             if (invDate >= weekStart) {
-                thisWeekSales += amount;
+                grossThisWeekSales += amount;
             }
             if (invDate >= monthStart) {
-                thisMonthSales += amount;
+                grossThisMonthSales += amount;
             }
             if (invDate >= lastMonthStart && invDate <= lastMonthEnd) {
-                lastMonthSales += amount;
+                grossLastMonthSales += amount;
             }
         }
+
+        // Subtract returns from sales figures
+        const todaySales = grossTodaySales - returnStats.todayAmount;
+        const yesterdaySales = grossYesterdaySales - returnStats.yesterdayAmount;
+        const thisWeekSales = grossThisWeekSales - returnStats.thisWeekAmount;
+        const thisMonthSales = grossThisMonthSales - returnStats.thisMonthAmount;
+        const lastMonthSales = grossLastMonthSales - returnStats.lastMonthAmount;
 
         // Product stats
         const totalProducts = products.length;
