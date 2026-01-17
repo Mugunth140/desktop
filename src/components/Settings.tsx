@@ -1,5 +1,6 @@
 import {
     AlertTriangle,
+    Cloud,
     Code2,
     Database,
     Edit2,
@@ -14,11 +15,14 @@ import {
     Wand2
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
+import { isFirestoreSyncEnabled } from "../db/firebase";
+import { syncAllProductsToFirestore } from "../db/firestoreSync";
 import { getDb } from "../db/index";
+import { productService } from "../db/productService";
 import { isTauriRuntime } from "../db/runtime";
+import { seedService } from "../db/seedService";
 import { settingsService } from "../db/settingsService";
 import { User, userService } from "../db/userService";
-import { seedService } from "../db/seedService";
 import { AppSettings, LowStockMethod } from "../types";
 import { Badge, Button, ConfirmModal, Input, useToast } from "./ui";
 
@@ -32,6 +36,7 @@ export const Settings: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [seeding, setSeeding] = useState(false);
+    const [syncing, setSyncing] = useState(false);
     const [clearing, setClearing] = useState(false);
     const [clearConfirm, setClearConfirm] = useState(false);
     const [seedConfirm, setSeedConfirm] = useState(false);
@@ -109,6 +114,35 @@ export const Settings: React.FC = () => {
         { id: "users", label: "Users", icon: Users },
         { id: "developer", label: "Developer", icon: Code2 },
     ];
+
+    const handleSyncToCloud = async () => {
+        if (!isFirestoreSyncEnabled()) {
+            toast.warning("Firebase Not Configured", "Please configure Firebase in your .env file to enable cloud sync.");
+            return;
+        }
+
+        setSyncing(true);
+        try {
+            const products = await productService.getAll();
+            if (products.length === 0) {
+                toast.info("No Products", "There are no products to sync.");
+                setSyncing(false);
+                return;
+            }
+
+            const result = await syncAllProductsToFirestore(products);
+            if (result.success) {
+                toast.success("Cloud Sync Complete", `Successfully synced ${result.synced} products to Firestore.`);
+            } else {
+                toast.warning("Partial Sync", `Synced ${result.synced} products, ${result.failed} failed.`);
+            }
+        } catch (error) {
+            console.error("Cloud sync error:", error);
+            toast.error("Sync Failed", error instanceof Error ? error.message : "Could not sync to cloud");
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     const handleSeedHugeData = async () => {
         setHugeSeedConfirm(false);
@@ -622,6 +656,28 @@ export const Settings: React.FC = () => {
                                             className="bg-indigo-600 hover:bg-indigo-700"
                                         >
                                             Seed Huge Data
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 mb-6">
+                                <div className="flex items-start gap-4">
+                                    <div className="p-3 bg-emerald-100 rounded-xl text-emerald-600">
+                                        <Cloud size={24} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-emerald-900 mb-2">Sync to Cloud</h4>
+                                        <p className="text-sm text-emerald-800 mb-4">
+                                            Push all local products to Firebase Firestore for PWA access. This syncs your entire inventory to the cloud.
+                                        </p>
+                                        <Button
+                                            onClick={handleSyncToCloud}
+                                            isLoading={syncing}
+                                            leftIcon={<Cloud size={18} />}
+                                            className="bg-emerald-600 hover:bg-emerald-700"
+                                        >
+                                            {syncing ? "Syncing..." : "Sync Products to Cloud"}
                                         </Button>
                                     </div>
                                 </div>

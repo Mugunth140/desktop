@@ -53,21 +53,22 @@ interface FirestoreProduct {
 
 /**
  * Convert a local Product to Firestore format
+ * Note: Firestore does not accept undefined values, so we convert them to null
  */
 const toFirestoreProduct = (product: Product): Omit<FirestoreProduct, 'synced_at'> => ({
     id: product.id,
     name: product.name,
-    sku: product.sku,
-    category: product.category,
-    price: product.price,
-    quantity: product.quantity,
-    barcode: product.barcode,
-    purchase_price: product.purchase_price,
-    reorder_level: product.reorder_level,
-    max_stock: product.max_stock,
-    last_sale_date: product.last_sale_date,
-    fsn_classification: product.fsn_classification,
-    updated_at: product.updated_at,
+    sku: product.sku ?? null,
+    category: product.category ?? null,
+    price: product.price ?? 0,
+    quantity: product.quantity ?? 0,
+    barcode: product.barcode ?? null,
+    purchase_price: product.purchase_price ?? 0,
+    reorder_level: product.reorder_level ?? 5,
+    max_stock: product.max_stock ?? null,
+    last_sale_date: product.last_sale_date ?? null,
+    fsn_classification: product.fsn_classification ?? null,
+    updated_at: product.updated_at ?? new Date().toISOString(),
 });
 
 /**
