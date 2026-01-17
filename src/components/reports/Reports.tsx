@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { reportService } from "../../db/reportService";
-import { ReportIntent, ReportKind } from "../../types/notifications";
 import { FSNClassification } from "../../types";
+import { ReportIntent, ReportKind } from "../../types/notifications";
 import { exportTableToCsv, exportTableToPdf, TableColumn } from "../../utils/reportExport";
 import { Badge, Button, Card, Input, useToast } from "../ui";
 import { ReportTable } from "./ReportTable";
@@ -283,6 +283,8 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
       "profit-summary": "Profit Summary Report",
     };
 
+    const filename = `motormods_${active}_${todayIso()}.pdf`;
+
     exportTableToPdf({
       title: titleMap[active],
       dateRangeText: canUseDateRange ? dateRangeText : undefined,
@@ -293,16 +295,22 @@ export const Reports: React.FC<{ intent?: ReportIntent | null }> = ({ intent }) 
           Object.entries(totals).filter(([k, v]) => k !== "product_name" && k !== "date" && v != null)
         )
         : undefined,
-      filename: `motormods_${active}_${todayIso()}.pdf`,
+      filename,
     });
+
+    toast.success("PDF Downloaded", `Report saved as ${filename}`);
   };
 
   const exportCsv = () => {
+    const filename = `motormods_${active}_${todayIso()}.csv`;
+
     exportTableToCsv({
       columns,
       rows: sortedRows.map(formatForExport),
-      filename: `motormods_${active}_${todayIso()}.csv`,
+      filename,
     });
+
+    toast.success("CSV Exported", `Report saved as ${filename}`);
   };
 
   const tabs: { id: ReportKind; label: string }[] = [

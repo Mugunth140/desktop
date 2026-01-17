@@ -18,6 +18,19 @@ import { getFirestoreDb, isFirestoreSyncEnabled } from "./firebase";
 
 const PRODUCTS_COLLECTION = "products";
 
+// Sync event helpers for UI updates
+const dispatchSyncStart = () => {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('firestore-sync-start'));
+    }
+};
+
+const dispatchSyncEnd = () => {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('firestore-sync-end'));
+    }
+};
+
 /**
  * Firestore product document structure
  */
@@ -70,6 +83,7 @@ export const syncProductToFirestore = async (product: Product): Promise<boolean>
     const db = getFirestoreDb();
     if (!db) return false;
 
+    dispatchSyncStart();
     try {
         const docRef = doc(db, PRODUCTS_COLLECTION, product.id);
         await setDoc(docRef, {
@@ -81,6 +95,8 @@ export const syncProductToFirestore = async (product: Product): Promise<boolean>
     } catch (error) {
         console.error(`Failed to sync product ${product.id}:`, error);
         return false;
+    } finally {
+        dispatchSyncEnd();
     }
 };
 

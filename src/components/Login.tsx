@@ -1,7 +1,7 @@
-import { ArrowRight, ShieldCheck, User2, Lock } from "lucide-react";
+import { ArrowRight, Lock, ShieldCheck, User2 } from "lucide-react";
 import React, { useState } from "react";
-import { UserRole, UserSession } from "../types";
 import { userService } from "../db/userService";
+import { UserRole, UserSession } from "../types";
 import { Button, Input, useToast } from "./ui";
 
 interface LoginProps {
@@ -48,11 +48,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  const useDefaultCredentials = () => {
-    setUsername("admin");
-    setPassword("admin123");
-    setError("");
-  };
+
 
   return (
     <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
@@ -143,16 +139,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </div>
             )}
 
-            {/* Demo Credentials Hint */}
-            <div className="flex items-center justify-center">
-              <button
-                type="button"
-                onClick={useDefaultCredentials}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-500/10"
-              >
-                Use demo credentials (admin / admin123)
-              </button>
-            </div>
+
 
             <Button
               type="submit"

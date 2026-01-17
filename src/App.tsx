@@ -40,7 +40,7 @@ function AppContent() {
       case "billing":
         return <Billing />;
       case "stock":
-        return <StockManagement canEdit={session?.role === "admin"} />;
+        return <StockManagement canEdit={true} canDelete={session?.role === "admin"} />;
       case "returns":
         return <SalesReturns userRole={session?.role} userName={session?.name} />;
       case "invoices":

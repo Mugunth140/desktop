@@ -1,18 +1,18 @@
 import {
   AlertTriangle,
+  ArrowUpDown,
   BarChart3,
+  ChevronDown,
+  ChevronUp,
   Edit2,
   Package,
   Plus,
+  RotateCcw,
   Save,
   Search,
+  SlidersHorizontal,
   Trash2,
   TrendingUp,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
-  RotateCcw,
-  SlidersHorizontal,
   X,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
@@ -25,9 +25,10 @@ import { Badge, Button, Card, ConfirmModal, EmptyState, Input, Modal, useToast }
 
 interface StockManagementProps {
   canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export const StockManagement: React.FC<StockManagementProps> = ({ canEdit = false }) => {
+export const StockManagement: React.FC<StockManagementProps> = ({ canEdit = false, canDelete = false }) => {
   const { products, loading, refetch } = useProducts();
   const toast = useToast();
 
@@ -664,11 +665,11 @@ export const StockManagement: React.FC<StockManagementProps> = ({ canEdit = fals
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => canEdit && setDeleteConfirm({ open: true, product: p })}
+                          onClick={() => canDelete && setDeleteConfirm({ open: true, product: p })}
                           leftIcon={<Trash2 size={14} />}
                           className="text-red-500 hover:bg-red-50 hover:text-red-600"
-                          disabled={!canEdit}
-                          title={canEdit ? undefined : "Admin only"}
+                          disabled={!canDelete}
+                          title={canDelete ? undefined : "Admin only"}
                         >
                           Delete
                         </Button>

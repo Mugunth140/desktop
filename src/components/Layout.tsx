@@ -2,18 +2,21 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  Cloud,
+  CloudOff,
   Database,
   HardDrive,
   LayoutDashboard,
   LogOut,
   Package,
   Receipt,
+  RefreshCw,
   RotateCcw,
   Settings,
   ShoppingCart,
-  WifiOff
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { isFirestoreSyncEnabled } from "../db/firebase";
 import { UserSession } from "../types";
 import { Button } from "./ui";
 
@@ -38,7 +41,15 @@ const navItems = [
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, session, onLogout }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSyncEnabled, setIsSyncEnabled] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const isAdmin = session.role === "admin";
+
+  // Check Firebase sync status
+  const checkSyncStatus = useCallback(() => {
+    const syncEnabled = isFirestoreSyncEnabled();
+    setIsSyncEnabled(syncEnabled);
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -47,11 +58,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Check sync status on mount
+    checkSyncStatus();
+
+    // Listen for sync events
+    const handleSyncStart = () => setIsSyncing(true);
+    const handleSyncEnd = () => setIsSyncing(false);
+    window.addEventListener('firestore-sync-start', handleSyncStart);
+    window.addEventListener('firestore-sync-end', handleSyncEnd);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('firestore-sync-start', handleSyncStart);
+      window.removeEventListener('firestore-sync-end', handleSyncEnd);
     };
-  }, []);
+  }, [checkSyncStatus]);
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
@@ -116,53 +138,69 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
 
         {/* Bottom Actions */}
         <div className="p-3 border-t border-slate-800 space-y-2">
-          {/* Backup Option */}
-          {isAdmin && (
-            <button
-              onClick={() => setActiveTab("backups")}
-              title={sidebarCollapsed ? "Backups" : undefined}
-              className={`
-                w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative
-                ${activeTab === "backups"
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                }
-              `}
-            >
-              <div className={`
-                w-6 h-6 flex items-center justify-center shrink-0 transition-colors
-                ${activeTab === "backups" ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}
-              `}>
-                <Database size={20} strokeWidth={activeTab === "backups" ? 2.5 : 2} />
+          {/* Backup Option - Available to all users */}
+          <button
+            onClick={() => setActiveTab("backups")}
+            title={sidebarCollapsed ? "Backups" : undefined}
+            className={`
+              w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative
+              ${activeTab === "backups"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20"
+                : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              }
+            `}
+          >
+            <div className={`
+              w-6 h-6 flex items-center justify-center shrink-0 transition-colors
+              ${activeTab === "backups" ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}
+            `}>
+              <Database size={20} strokeWidth={activeTab === "backups" ? 2.5 : 2} />
+            </div>
+            {!sidebarCollapsed && (
+              <div className="text-left overflow-hidden flex-1">
+                <span className={`block font-medium text-sm ${activeTab === "backups" ? 'text-white' : ''}`}>
+                  Backups
+                </span>
               </div>
-              {!sidebarCollapsed && (
-                <div className="text-left overflow-hidden flex-1">
-                  <span className={`block font-medium text-sm ${activeTab === "backups" ? 'text-white' : ''}`}>
-                    Backups
-                  </span>
-                </div>
-              )}
-            </button>
-          )}
+            )}
+          </button>
         </div>
 
         {/* Footer Status */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/30">
           <div className={`rounded-xl ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
             {sidebarCollapsed ? (
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+              <div className={`w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_8px] ${isSyncing ? 'bg-blue-500 shadow-blue-500/50' :
+                  isOnline && isSyncEnabled ? 'bg-emerald-500 shadow-emerald-500/50' :
+                    isOnline ? 'bg-amber-500 shadow-amber-500/50' :
+                      'bg-red-500 shadow-red-500/50'
+                }`} />
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isOnline ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-amber-500 shadow-amber-500/50'}`}></span>
-                    <span className="text-xs font-medium text-slate-300">{isOnline ? 'System Online' : 'Offline Mode'}</span>
+                    {isSyncing ? (
+                      <RefreshCw size={12} className="text-blue-400 animate-spin" />
+                    ) : (
+                      <span className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px] ${isOnline && isSyncEnabled ? 'bg-emerald-500 shadow-emerald-500/50' :
+                          isOnline ? 'bg-amber-500 shadow-amber-500/50' :
+                            'bg-red-500 shadow-red-500/50'
+                        }`}></span>
+                    )}
+                    <span className="text-xs font-medium text-slate-300">
+                      {isSyncing ? 'Syncing...' :
+                        isOnline && isSyncEnabled ? 'Connected' :
+                          isOnline ? 'Local Only' :
+                            'Offline'}
+                    </span>
                   </div>
                   <span className="text-[10px] text-slate-500 font-mono">v0.2.0</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-500">
-                  {isOnline ? <HardDrive size={12} /> : <WifiOff size={12} />}
-                  <span className="text-[10px]">{isOnline ? 'Local Database' : 'No Connection'}</span>
+                  {isSyncEnabled ? <Cloud size={12} /> : isOnline ? <HardDrive size={12} /> : <CloudOff size={12} />}
+                  <span className="text-[10px]">
+                    {isSyncEnabled ? 'Cloud Sync Active' : isOnline ? 'Local Database' : 'No Connection'}
+                  </span>
                 </div>
               </div>
             )}
